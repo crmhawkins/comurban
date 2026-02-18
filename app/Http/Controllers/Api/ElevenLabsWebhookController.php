@@ -24,13 +24,14 @@ class ElevenLabsWebhookController extends Controller
     public function handle(Request $request)
     {
         // Log initial request
+        $rawBody = $request->getContent();
         Log::info('=== ElevenLabs Webhook Request Received ===', [
             'method' => $request->method(),
             'url' => $request->fullUrl(),
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'headers' => $request->headers->all(),
-            'has_content' => $request->hasContent(),
+            'has_content' => !empty($rawBody),
             'content_length' => $request->header('Content-Length'),
         ]);
 
@@ -39,7 +40,7 @@ class ElevenLabsWebhookController extends Controller
             $rawBody = $request->getContent();
             Log::info('ElevenLabs Webhook - Raw Body', [
                 'body_length' => strlen($rawBody),
-                'body_preview' => substr($rawBody, 0, 500), // First 500 chars
+                'body_preview' => strlen($rawBody) > 0 ? substr($rawBody, 0, 500) : '(empty)', // First 500 chars
             ]);
 
             // Verify HMAC signature
