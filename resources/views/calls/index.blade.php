@@ -137,7 +137,7 @@
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center space-x-2">
                                         <p class="text-sm font-semibold text-gray-900">
-                                            {{ $call->phone_number ?? 'Sin número' }}
+                                            {{ $call->formatted_phone_number ?? $call->phone_number ?? 'Sin número' }}
                                         </p>
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                             {{ $call->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}

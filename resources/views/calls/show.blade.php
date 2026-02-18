@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Llamada - ' . ($call->phone_number ?? 'Sin número'))
+@section('title', 'Llamada - ' . ($call->formatted_phone_number ?? $call->phone_number ?? 'Sin número'))
 
 @section('content')
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -20,7 +20,7 @@
                     <h1 class="text-3xl font-bold text-gray-900">
                         Llamada
                     </h1>
-                    <p class="text-sm text-gray-600">{{ $call->phone_number ?? 'Sin número de teléfono' }}</p>
+                    <p class="text-sm text-gray-600">{{ $call->formatted_phone_number ?? $call->phone_number ?? 'Sin número de teléfono' }}</p>
                 </div>
             </div>
             <div class="flex items-center space-x-2">
@@ -95,7 +95,7 @@
                 <div class="space-y-3">
                     <div>
                         <p class="text-sm font-medium text-gray-600">Número de Teléfono</p>
-                        <p class="text-sm text-gray-900">{{ $call->phone_number ?? 'N/A' }}</p>
+                        <p class="text-sm text-gray-900">{{ $call->formatted_phone_number ?? $call->phone_number ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-600">Estado</p>

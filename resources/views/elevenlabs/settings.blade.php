@@ -75,6 +75,10 @@
                     <span class="text-gray-500">Base URL:</span>
                     <span class="ml-2 font-medium">{{ $settings['base_url'] ?? 'https://api.elevenlabs.io/v1' }}</span>
                 </div>
+                <div>
+                    <span class="text-gray-500">Agent ID:</span>
+                    <span class="ml-2 font-medium font-mono">{{ $settings['agent_id'] ?? 'No configurado' }}</span>
+                </div>
             </div>
 
             <form method="POST" action="{{ route('elevenlabs.settings.test-connection') }}" class="inline">
@@ -168,6 +172,19 @@
                         />
                         <p class="text-xs text-gray-500 mt-1">Estado: {{ $settings['webhook_secret_status'] ?? 'No configurado' }}</p>
                         <p class="text-xs text-gray-400 mt-1">Deja en blanco para mantener el valor actual. Se usa para verificar la firma HMAC de los webhooks.</p>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Agent ID</label>
+                        <input
+                            type="text"
+                            name="elevenlabs_agent_id"
+                            value="{{ $settings['agent_id'] ?? '' }}"
+                            placeholder="agent_..."
+                            class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-mono bg-white"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Estado: {{ $settings['agent_id_status'] ?? 'No configurado' }}</p>
+                        <p class="text-xs text-gray-400 mt-1">ID del agente para filtrar conversaciones al sincronizar. Deja en blanco para sincronizar todas las conversaciones.</p>
                     </div>
                 </div>
                 

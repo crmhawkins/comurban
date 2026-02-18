@@ -10,11 +10,13 @@ class ElevenLabsService
 {
     protected ?string $apiKey;
     protected string $baseUrl;
+    protected ?string $agentId;
 
     public function __construct()
     {
         $this->apiKey = ConfigHelper::getElevenLabsConfig('api_key', config('services.elevenlabs.api_key'));
         $this->baseUrl = ConfigHelper::getElevenLabsConfig('base_url', config('services.elevenlabs.base_url', 'https://api.elevenlabs.io/v1'));
+        $this->agentId = ConfigHelper::getElevenLabsConfig('agent_id', config('services.elevenlabs.agent_id'));
         
         // Validate required configuration
         if (!$this->apiKey) {
@@ -109,15 +111,39 @@ class ElevenLabsService
     }
 
     /**
-     * Get the latest conversation
+     * Get the latest conversation, optionally filtered by agent ID
      */
-    public function getLatestConversation(): array
+    public function getLatestConversation(?string $agentId = null): array
     {
+        $agentId = $agentId ?? $this->agentId;
         $result = $this->getConversations(['page_size' => 100]);
         
         if ($result['success'] && isset($result['data']['conversations']) && count($result['data']['conversations']) > 0) {
-            // Sort by start_time_unix_secs (most recent first)
+            // Filter by agent ID if provided
             $conversations = $result['data']['conversations'];
+            
+            if ($agentId) {
+                $conversations = array_filter($conversations, function($conv) use ($agentId) {
+                    // Check agent_id in conversation metadata
+                    $convAgentId = $conv['agent_id'] ?? null;
+                    if (!$convAgentId && isset($conv['metadata']['agent_id'])) {
+                        $convAgentId = $conv['metadata']['agent_id'];
+                    }
+                    return $convAgentId === $agentId;
+                });
+                
+                // Re-index array after filtering
+                $conversations = array_values($conversations);
+            }
+            
+            if (count($conversations) === 0) {
+                return [
+                    'success' => false,
+                    'error' => 'No conversations found for the specified agent',
+                ];
+            }
+            
+            // Sort by start_time_unix_secs (most recent first)
             usort($conversations, function($a, $b) {
                 $timeA = $a['start_time_unix_secs'] ?? 0;
                 $timeB = $b['start_time_unix_secs'] ?? 0;

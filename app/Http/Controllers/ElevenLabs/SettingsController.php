@@ -43,6 +43,7 @@ class SettingsController extends Controller
             'elevenlabs_api_key' => 'nullable|string',
             'elevenlabs_base_url' => 'nullable|url',
             'elevenlabs_webhook_secret' => 'nullable|string',
+            'elevenlabs_agent_id' => 'nullable|string',
         ]);
 
         $updated = false;
@@ -59,7 +60,7 @@ class SettingsController extends Controller
             Cache::forget('elevenlabs_configs_all');
             
             // Clear individual config caches
-            foreach (['api_key', 'base_url', 'webhook_secret'] as $key) {
+            foreach (['api_key', 'base_url', 'webhook_secret', 'agent_id'] as $key) {
                 Cache::forget("elevenlabs_config_{$key}");
             }
 
@@ -102,6 +103,7 @@ class SettingsController extends Controller
         $apiKey = ConfigHelper::getElevenLabsConfig('api_key', config('services.elevenlabs.api_key'));
         $baseUrl = ConfigHelper::getElevenLabsConfig('base_url', config('services.elevenlabs.base_url', 'https://api.elevenlabs.io/v1'));
         $webhookSecret = ConfigHelper::getElevenLabsConfig('webhook_secret', config('services.elevenlabs.webhook_secret'));
+        $agentId = ConfigHelper::getElevenLabsConfig('agent_id', config('services.elevenlabs.agent_id'));
 
         $settings = [];
         $settings['api_key'] = $apiKey ? $this->maskSensitiveValue($apiKey) : '';
@@ -112,6 +114,8 @@ class SettingsController extends Controller
         $settings['webhook_secret'] = $webhookSecret ? $this->maskSensitiveValue($webhookSecret) : '';
         $settings['webhook_secret_full'] = $webhookSecret;
         $settings['webhook_secret_status'] = $webhookSecret ? 'Configurado' : 'No configurado';
+        $settings['agent_id'] = $agentId ?? '';
+        $settings['agent_id_status'] = $agentId ? 'Configurado' : 'No configurado';
 
         return $settings;
     }
