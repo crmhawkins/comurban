@@ -26,13 +26,13 @@ class ElevenLabsWebhookController extends Controller
         try {
             // Verify HMAC signature
             $signatureValid = $this->verifySignature($request);
-            
+
             if (!$signatureValid) {
                 Log::warning('ElevenLabs webhook signature validation failed', [
                     'ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                 ]);
-                
+
                 return response()->json(['error' => 'Invalid signature'], 401);
             }
 
@@ -42,12 +42,13 @@ class ElevenLabsWebhookController extends Controller
                 'payload' => $payload,
             ]);
 
-            // Process the webhook event
+            // Process the webhook event immediately (synchronously)
             // ElevenLabs sends different event types
             $eventType = $payload['event'] ?? $payload['type'] ?? 'unknown';
 
-            // Dispatch job to process the webhook
-            ProcessElevenLabsWebhook::dispatch($payload, $eventType);
+            // Process immediately without queue
+            $job = new ProcessElevenLabsWebhook($payload, $eventType);
+            $job->handle($this->elevenLabsService);
 
             return response()->json(['status' => 'ok'], 200);
         } catch (\Exception $e) {
@@ -66,7 +67,7 @@ class ElevenLabsWebhookController extends Controller
     protected function verifySignature(Request $request): bool
     {
         $signature = $request->header('ElevenLabs-Signature');
-        
+
         if (!$signature) {
             Log::warning('ElevenLabs webhook missing signature header');
             // In development, allow without signature if not configured
@@ -79,7 +80,7 @@ class ElevenLabsWebhookController extends Controller
         }
 
         $webhookSecret = \App\Helpers\ConfigHelper::getElevenLabsConfig('webhook_secret', config('services.elevenlabs.webhook_secret'));
-        
+
         if (!$webhookSecret) {
             Log::warning('ElevenLabs Webhook Secret not configured, skipping signature validation');
             // In development, allow if not configured
@@ -88,10 +89,10 @@ class ElevenLabsWebhookController extends Controller
 
         // Get raw request body
         $payload = $request->getContent();
-        
+
         // Calculate expected signature using HMAC SHA256
         $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
-        
+
         // Use hash_equals to prevent timing attacks
         return hash_equals($expectedSignature, $signature);
     }
