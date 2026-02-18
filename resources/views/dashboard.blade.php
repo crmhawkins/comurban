@@ -1,0 +1,299 @@
+@extends('layouts.app')
+
+@section('title', 'Dashboard')
+
+@section('content')
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">
+                    Dashboard
+                </h1>
+                <p class="mt-2 text-gray-600 flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    Bienvenido de nuevo, <span class="font-semibold text-gray-900">{{ $user->name }}</span>
+                </p>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span class="text-sm text-gray-600">Sistema activo</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Métricas principales -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <!-- Métrica 1 -->
+        <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
+            <div class="p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-600 mb-1">Total Usuarios</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            <span class="text-gray-400">--</span>
+                        </p>
+                    </div>
+                    <div class="h-16 w-16 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-gray-500">Última actualización: --</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Métrica 2 -->
+        <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
+            <div class="p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-600 mb-1">Actividad Hoy</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            <span class="text-gray-400">--</span>
+                        </p>
+                    </div>
+                    <div class="h-16 w-16 bg-green-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-gray-500">Últimas 24 horas</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Métrica 3 -->
+        <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
+            <div class="p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-600 mb-1">Ingresos</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            <span class="text-gray-400">--</span>
+                        </p>
+                    </div>
+                    <div class="h-16 w-16 bg-yellow-500 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-gray-500">Este mes</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Métrica 4 -->
+        <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
+            <div class="p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-600 mb-1">Crecimiento</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            <span class="text-gray-400">--</span>
+                        </p>
+                    </div>
+                    <div class="h-16 w-16 bg-red-500 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-gray-500">Comparado con mes anterior</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos placeholder -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
+        <!-- Gráfico 1 -->
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-semibold text-gray-900">Gráfico de Tendencias</h3>
+                <div class="h-10 w-10 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="h-64 flex items-center justify-center bg-gradient-to-br from-gray-50 to-indigo-50/30 rounded-xl border-2 border-dashed border-gray-200">
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <p class="text-sm font-medium text-gray-500">Placeholder para gráfico de tendencias</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico 2 -->
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-semibold text-gray-900">Distribución por Categorías</h3>
+                <div class="h-10 w-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="h-64 flex items-center justify-center bg-gradient-to-br from-gray-50 to-purple-50/30 rounded-xl border-2 border-dashed border-gray-200">
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+                    </svg>
+                    <p class="text-sm font-medium text-gray-500">Placeholder para gráfico de distribución</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección WhatsApp -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982 1.005-3.648-.239-.375a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                    </svg>
+                    WhatsApp Business
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">Gestiona tus conversaciones y mensajes</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <!-- Card Conversaciones -->
+            <a href="{{ route('whatsapp.conversations') }}" class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="h-12 w-12 bg-green-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                            </svg>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">Conversaciones</h3>
+                    <p class="text-sm text-gray-600 mb-3">Gestiona tus chats y mensajes</p>
+                    <div class="flex items-center text-sm text-green-600 font-medium">
+                        <span>Ver conversaciones</span>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card Plantillas -->
+            <a href="{{ route('whatsapp.templates') }}" class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2h-1.528A6 6 0 004 9.528V4z"></path>
+                                <path fill-rule="evenodd" d="M8 10a4 4 0 00-3.446 6.032l-1.261 1.26a1 1 0 101.414 1.415l1.261-1.261A4 4 0 108 10zm-2 4a2 2 0 114 0 2 2 0 01-4 0z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">Plantillas</h3>
+                    <p class="text-sm text-gray-600 mb-3">Administra tus plantillas de mensajes</p>
+                    <div class="flex items-center text-sm text-blue-600 font-medium">
+                        <span>Ver plantillas</span>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card Prueba de Conexión -->
+            <a href="{{ route('whatsapp.test-connection') }}" class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="h-12 w-12 bg-purple-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">Prueba de Conexión</h3>
+                    <p class="text-sm text-gray-600 mb-3">Verifica tu conexión con WhatsApp</p>
+                    <div class="flex items-center text-sm text-purple-600 font-medium">
+                        <span>Probar conexión</span>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card Configuración -->
+            <a href="{{ route('whatsapp.settings') }}" class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="h-12 w-12 bg-orange-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-orange-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">Configuración</h3>
+                    <p class="text-sm text-gray-600 mb-3">Ajusta la configuración de WhatsApp</p>
+                    <div class="flex items-center text-sm text-orange-600 font-medium">
+                        <span>Configurar</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadísticas adicionales -->
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">Estadísticas Detalladas</h3>
+            <button type="button" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center cursor-pointer">
+                Ver más
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="p-5 bg-indigo-50 rounded-lg border border-indigo-200 hover:shadow-md transition-shadow duration-200">
+                <p class="text-sm font-medium text-indigo-700 mb-2">Estadística 1</p>
+                <p class="text-3xl font-bold text-gray-900">
+                    <span class="text-gray-400">--</span>
+                </p>
+            </div>
+            <div class="p-5 bg-purple-50 rounded-lg border border-purple-200 hover:shadow-md transition-shadow duration-200">
+                <p class="text-sm font-medium text-purple-700 mb-2">Estadística 2</p>
+                <p class="text-3xl font-bold text-gray-900">
+                    <span class="text-gray-400">--</span>
+                </p>
+            </div>
+            <div class="p-5 bg-pink-50 rounded-lg border border-pink-200 hover:shadow-md transition-shadow duration-200">
+                <p class="text-sm font-medium text-pink-700 mb-2">Estadística 3</p>
+                <p class="text-3xl font-bold text-gray-900">
+                    <span class="text-gray-400">--</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
