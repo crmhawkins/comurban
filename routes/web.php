@@ -13,6 +13,9 @@ Route::get('/', function () {
 Route::prefix('api/webhook')->group(function () {
     Route::get('/handle', [\App\Http\Controllers\Api\WebhookController::class, 'handle']);
     Route::post('/handle', [\App\Http\Controllers\Api\WebhookController::class, 'handle']);
+
+    // Webhook de ElevenLabs
+    Route::post('/elevenlabs', [\App\Http\Controllers\Api\ElevenLabsWebhookController::class, 'handle']);
 });
 
 // Rutas de autenticación
@@ -46,5 +49,19 @@ Route::middleware('auth')->group(function () {
         // Prueba de conexión
         Route::get('/test-connection', [\App\Http\Controllers\WhatsApp\TestConnectionController::class, 'index'])->name('test-connection');
         Route::post('/test-connection', [\App\Http\Controllers\WhatsApp\TestConnectionController::class, 'test'])->name('test-connection.test');
+    });
+
+    // Rutas de Llamadas
+    Route::prefix('calls')->name('calls.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\CallsController::class, 'index'])->name('index');
+        Route::get('/{id}', [\App\Http\Controllers\CallsController::class, 'show'])->name('show');
+        Route::post('/sync-latest', [\App\Http\Controllers\CallsController::class, 'syncLatest'])->name('sync-latest');
+    });
+
+    // Rutas de ElevenLabs
+    Route::prefix('elevenlabs')->name('elevenlabs.')->group(function () {
+        Route::get('/settings', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'index'])->name('settings');
+        Route::post('/settings', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'update'])->name('settings.update');
+        Route::post('/settings/test-connection', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'testConnection'])->name('settings.test-connection');
     });
 });

@@ -45,4 +45,9 @@ return [
         'business_id' => env('WHATSAPP_BUSINESS_ID'),
     ],
 
+    'elevenlabs' => [
+        'api_key' => env('ELEVENLABS_API_KEY'),
+        'base_url' => env('ELEVENLABS_API_BASE_URL', 'https://api.elevenlabs.io/v1'),
+    ],
+
 ];

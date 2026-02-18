@@ -116,6 +116,44 @@
         </div>
     </div>
 
+    <!-- Sección de Llamadas -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-purple-600 flex items-center space-x-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                    </svg>
+                    <span>Llamadas</span>
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">Gestiona las llamadas de ElevenLabs</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <!-- Card Llamadas -->
+            <a href="{{ route('calls.index') }}" class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="h-12 w-12 bg-purple-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                            </svg>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">Llamadas</h3>
+                    <p class="text-sm text-gray-600 mb-3">Ver todas las llamadas recibidas</p>
+                    <div class="flex items-center text-sm text-purple-600 font-medium">
+                        <span>Ver llamadas</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
     <!-- Gráficos placeholder -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
         <!-- Gráfico 1 -->

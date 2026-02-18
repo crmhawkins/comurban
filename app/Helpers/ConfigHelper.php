@@ -65,4 +65,63 @@ class ConfigHelper
             return $result;
         });
     }
+
+    /**
+     * Get an ElevenLabs configuration value from database or env
+     * Database takes priority over .env
+     */
+    public static function getElevenLabsConfig(string $key, ?string $default = null): ?string
+    {
+        // Try to get from database first
+        $setting = Cache::remember("elevenlabs_config_{$key}", 3600, function () use ($key) {
+            return Setting::where('key', "elevenlabs_{$key}")->first();
+        });
+
+        if ($setting && $setting->value) {
+            return $setting->value;
+        }
+
+        // Fallback to .env
+        $envKey = 'ELEVENLABS_' . strtoupper(str_replace('_', '_', $key));
+        return env($envKey, $default);
+    }
+
+    /**
+     * Set an ElevenLabs configuration value in database
+     */
+    public static function setElevenLabsConfig(string $key, string $value): void
+    {
+        Setting::updateOrCreate(
+            ['key' => "elevenlabs_{$key}"],
+            [
+                'value' => $value,
+                'type' => 'string',
+            ]
+        );
+
+        // Clear cache
+        Cache::forget("elevenlabs_config_{$key}");
+    }
+
+    /**
+     * Get all ElevenLabs configurations
+     */
+    public static function getAllElevenLabsConfigs(): array
+    {
+        return Cache::remember('elevenlabs_configs_all', 3600, function () {
+            $settings = Setting::where('key', 'like', 'elevenlabs_%')
+                ->get()
+                ->pluck('value', 'key')
+                ->toArray();
+
+            // Remove 'elevenlabs_' prefix from keys
+            $result = [];
+            foreach ($settings as $key => $value) {
+                $cleanKey = str_replace('elevenlabs_', '', $key);
+                $result[$cleanKey] = $value;
+            }
+
+            return $result;
+        });
+    }
 }
