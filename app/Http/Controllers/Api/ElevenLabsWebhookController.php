@@ -115,17 +115,19 @@ class ElevenLabsWebhookController extends Controller
 
     /**
      * Verify webhook signature from ElevenLabs using HMAC
+     * Format: t=timestamp,v0=signature
+     * Signature is calculated as: HMAC_SHA256(timestamp + "." + body, secret)
      */
     protected function verifySignature(Request $request): bool
     {
-        $signature = $request->header('ElevenLabs-Signature');
+        $signatureHeader = $request->header('ElevenLabs-Signature');
 
         Log::info('ElevenLabs Webhook - Signature verification', [
-            'signature_header' => $signature,
-            'signature_present' => !empty($signature),
+            'signature_header' => $signatureHeader,
+            'signature_present' => !empty($signatureHeader),
         ]);
 
-        if (!$signature) {
+        if (!$signatureHeader) {
             Log::warning('ElevenLabs webhook missing signature header');
             // In development, allow without signature if not configured
             $webhookSecret = \App\Helpers\ConfigHelper::getElevenLabsConfig('webhook_secret', config('services.elevenlabs.webhook_secret'));
@@ -150,21 +152,44 @@ class ElevenLabsWebhookController extends Controller
             return true;
         }
 
+        // Parse signature header: format is "t=timestamp,v0=signature"
+        $timestamp = null;
+        $signature = null;
+
+        // Extract timestamp and signature from header
+        if (preg_match('/t=(\d+)/', $signatureHeader, $timestampMatch)) {
+            $timestamp = $timestampMatch[1];
+        }
+
+        if (preg_match('/v0=([a-f0-9]+)/', $signatureHeader, $signatureMatch)) {
+            $signature = $signatureMatch[1];
+        }
+
+        Log::info('ElevenLabs Webhook - Parsed signature', [
+            'timestamp' => $timestamp,
+            'signature' => $signature ? substr($signature, 0, 20) . '...' : 'not found',
+        ]);
+
+        if (!$timestamp || !$signature) {
+            Log::error('ElevenLabs Webhook - Invalid signature format', [
+                'header' => $signatureHeader,
+            ]);
+            return false;
+        }
+
         // Get raw request body
         $payload = $request->getContent();
 
-        Log::info('ElevenLabs Webhook - Calculating signature', [
+        // Calculate expected signature: HMAC_SHA256(timestamp + "." + body, secret)
+        $signedPayload = $timestamp . '.' . $payload;
+        $expectedSignature = hash_hmac('sha256', $signedPayload, $webhookSecret);
+
+        Log::info('ElevenLabs Webhook - Signature calculation', [
             'payload_length' => strlen($payload),
-            'secret_length' => strlen($webhookSecret),
-        ]);
-
-        // Calculate expected signature using HMAC SHA256
-        $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
-
-        Log::info('ElevenLabs Webhook - Signature comparison', [
-            'received_signature' => $signature,
-            'expected_signature' => $expectedSignature,
-            'signature_match' => hash_equals($expectedSignature, $signature),
+            'timestamp' => $timestamp,
+            'signed_payload_length' => strlen($signedPayload),
+            'received_signature' => substr($signature, 0, 20) . '...',
+            'expected_signature' => substr($expectedSignature, 0, 20) . '...',
         ]);
 
         // Use hash_equals to prevent timing attacks
@@ -172,9 +197,12 @@ class ElevenLabsWebhookController extends Controller
 
         if (!$isValid) {
             Log::error('ElevenLabs Webhook - Signature mismatch!', [
-                'received' => substr($signature, 0, 20) . '...',
-                'expected' => substr($expectedSignature, 0, 20) . '...',
+                'received' => substr($signature, 0, 40),
+                'expected' => substr($expectedSignature, 0, 40),
+                'timestamp' => $timestamp,
             ]);
+        } else {
+            Log::info('ElevenLabs Webhook - Signature validation PASSED');
         }
 
         return $isValid;
