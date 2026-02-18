@@ -33,6 +33,12 @@ class ProcessElevenLabsWebhook implements ShouldQueue
      */
     public function handle(ElevenLabsService $elevenLabsService): void
     {
+        Log::info('=== ProcessElevenLabsWebhook Job Started ===', [
+            'event_type' => $this->eventType,
+            'payload_keys' => array_keys($this->payload),
+            'payload' => $this->payload,
+        ]);
+
         try {
             DB::transaction(function () use ($elevenLabsService) {
                 // Extract conversation ID from payload
@@ -41,12 +47,26 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     ?? $this->payload['id'] 
                     ?? null;
 
+                Log::info('ProcessElevenLabsWebhook - Extracted conversation ID', [
+                    'conversation_id' => $conversationId,
+                    'payload_structure' => [
+                        'has_conversation_id' => isset($this->payload['conversation_id']),
+                        'has_conversation' => isset($this->payload['conversation']),
+                        'has_id' => isset($this->payload['id']),
+                    ],
+                ]);
+
                 if (!$conversationId) {
                     Log::warning('ElevenLabs webhook missing conversation ID', [
                         'payload' => $this->payload,
+                        'event_type' => $this->eventType,
                     ]);
                     return;
                 }
+
+                Log::info('ProcessElevenLabsWebhook - Fetching conversation from API', [
+                    'conversation_id' => $conversationId,
+                ]);
 
                 // Get conversation details from ElevenLabs API
                 $conversationData = $elevenLabsService->getConversation($conversationId);
@@ -55,9 +75,16 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     Log::error('Failed to fetch conversation from ElevenLabs', [
                         'conversation_id' => $conversationId,
                         'error' => $conversationData['error'] ?? 'Unknown error',
+                        'response' => $conversationData,
                     ]);
                     return;
                 }
+
+                Log::info('ProcessElevenLabsWebhook - Conversation fetched successfully', [
+                    'conversation_id' => $conversationId,
+                    'has_data' => isset($conversationData['data']),
+                    'data_keys' => isset($conversationData['data']) ? array_keys($conversationData['data']) : [],
+                ]);
 
                 $conversation = $conversationData['data'];
 
@@ -179,6 +206,17 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     $summary = $conversation['metadata']['summary'];
                 }
 
+                Log::info('ProcessElevenLabsWebhook - Preparing to save call', [
+                    'conversation_id' => $conversationId,
+                    'phone_number' => $phoneNumber,
+                    'status' => $status,
+                    'has_transcript' => !empty($transcript),
+                    'transcript_length' => $transcript ? strlen($transcript) : 0,
+                    'has_started_at' => !is_null($startedAt),
+                    'has_ended_at' => !is_null($endedAt),
+                    'duration' => $duration,
+                ]);
+
                 // Create or update call record
                 $call = Call::updateOrCreate(
                     ['elevenlabs_call_id' => $conversationId],
@@ -195,11 +233,12 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     ]
                 );
 
-                Log::info('ElevenLabs call processed successfully', [
+                Log::info('=== ElevenLabs call processed successfully ===', [
                     'call_id' => $call->id,
                     'conversation_id' => $conversationId,
                     'phone_number' => $phoneNumber,
                     'status' => $status,
+                    'was_existing' => $call->wasRecentlyCreated === false,
                 ]);
             });
         } catch (\Exception $e) {
