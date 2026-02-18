@@ -9,15 +9,6 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Rutas de webhook (sin autenticación)
-Route::prefix('api/webhook')->group(function () {
-    Route::get('/handle', [\App\Http\Controllers\Api\WebhookController::class, 'handle']);
-    Route::post('/handle', [\App\Http\Controllers\Api\WebhookController::class, 'handle']);
-
-    // Webhook de ElevenLabs
-    Route::post('/elevenlabs', [\App\Http\Controllers\Api\ElevenLabsWebhookController::class, 'handle']);
-});
-
 // Rutas de autenticación
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
@@ -63,5 +54,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/settings', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'index'])->name('settings');
         Route::post('/settings', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'update'])->name('settings.update');
         Route::post('/settings/test-connection', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'testConnection'])->name('settings.test-connection');
+    });
+
+    // Rutas de Logs (solo admin)
+    Route::prefix('logs')->name('logs.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\LogsController::class, 'index'])->name('index');
+        Route::post('/clear', [\App\Http\Controllers\LogsController::class, 'clear'])->name('clear');
+        Route::post('/test', [\App\Http\Controllers\LogsController::class, 'test'])->name('test');
     });
 });
