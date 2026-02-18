@@ -109,4 +109,31 @@ class Call extends Model
     {
         return $this->metadata['analysis']['call_successful'] ?? null;
     }
+
+    /**
+     * Get transcript - try to extract from metadata if not in transcript field
+     */
+    public function getFormattedTranscriptAttribute(): ?string
+    {
+        // If transcript is already set, return it
+        if ($this->transcript) {
+            return $this->transcript;
+        }
+
+        // Try to extract from metadata
+        if (isset($this->metadata['transcript']) && is_array($this->metadata['transcript'])) {
+            $transcriptLines = [];
+            foreach ($this->metadata['transcript'] as $entry) {
+                $role = $entry['role'] ?? 'unknown';
+                $message = $entry['message'] ?? $entry['original_message'] ?? '';
+                if ($message) {
+                    $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
+                    $transcriptLines[] = "[{$roleLabel}]: {$message}";
+                }
+            }
+            return implode("\n\n", $transcriptLines);
+        }
+
+        return null;
+    }
 }

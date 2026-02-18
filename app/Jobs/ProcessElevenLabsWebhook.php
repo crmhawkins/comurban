@@ -70,26 +70,44 @@ class ProcessElevenLabsWebhook implements ShouldQueue
 
                 // Extract transcript from conversation data (it's already in the response)
                 $transcript = null;
-                if (isset($conversation['transcript']) && is_array($conversation['transcript'])) {
+                if (isset($conversation['transcript']) && is_array($conversation['transcript']) && count($conversation['transcript']) > 0) {
                     // Format transcript array into readable text
                     $transcriptLines = [];
                     foreach ($conversation['transcript'] as $entry) {
                         $role = $entry['role'] ?? 'unknown';
                         $message = $entry['message'] ?? $entry['original_message'] ?? '';
-                        if ($message) {
+                        if ($message && trim($message)) {
                             $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
                             $transcriptLines[] = "[{$roleLabel}]: {$message}";
                         }
                     }
-                    $transcript = implode("\n\n", $transcriptLines);
-                } else {
-                    // Try to get transcript from API if not in conversation data
+                    if (count($transcriptLines) > 0) {
+                        $transcript = implode("\n\n", $transcriptLines);
+                    }
+                }
+                
+                // If transcript is still null, try to get from API
+                if (!$transcript) {
                     $transcriptData = $elevenLabsService->getTranscript($conversationId);
                     if ($transcriptData['success']) {
                         if (isset($transcriptData['data']['transcript'])) {
-                            $transcript = is_string($transcriptData['data']['transcript']) 
-                                ? $transcriptData['data']['transcript']
-                                : json_encode($transcriptData['data']['transcript']);
+                            if (is_array($transcriptData['data']['transcript'])) {
+                                // Format array transcript
+                                $transcriptLines = [];
+                                foreach ($transcriptData['data']['transcript'] as $entry) {
+                                    $role = $entry['role'] ?? 'unknown';
+                                    $message = $entry['message'] ?? $entry['original_message'] ?? '';
+                                    if ($message && trim($message)) {
+                                        $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
+                                        $transcriptLines[] = "[{$roleLabel}]: {$message}";
+                                    }
+                                }
+                                if (count($transcriptLines) > 0) {
+                                    $transcript = implode("\n\n", $transcriptLines);
+                                }
+                            } else {
+                                $transcript = $transcriptData['data']['transcript'];
+                            }
                         } elseif (isset($transcriptData['data']['text'])) {
                             $transcript = $transcriptData['data']['text'];
                         } elseif (is_string($transcriptData['data'])) {
