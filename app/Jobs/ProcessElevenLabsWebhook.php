@@ -42,7 +42,9 @@ class ProcessElevenLabsWebhook implements ShouldQueue
         try {
             DB::transaction(function () use ($elevenLabsService) {
                 // Extract conversation ID from payload
-                $conversationId = $this->payload['conversation_id'] 
+                // ElevenLabs webhook structure: { type, event_timestamp, data: { conversation_id, ... } }
+                $conversationId = $this->payload['data']['conversation_id']
+                    ?? $this->payload['conversation_id'] 
                     ?? $this->payload['conversation']['id'] 
                     ?? $this->payload['id'] 
                     ?? null;
@@ -50,6 +52,7 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 Log::info('ProcessElevenLabsWebhook - Extracted conversation ID', [
                     'conversation_id' => $conversationId,
                     'payload_structure' => [
+                        'has_data_conversation_id' => isset($this->payload['data']['conversation_id']),
                         'has_conversation_id' => isset($this->payload['conversation_id']),
                         'has_conversation' => isset($this->payload['conversation']),
                         'has_id' => isset($this->payload['id']),

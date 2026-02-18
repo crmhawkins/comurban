@@ -80,7 +80,10 @@ class ElevenLabsWebhookController extends Controller
             ]);
 
             // Extract conversation ID early for logging
-            $conversationId = $payload['conversation_id']
+            // ElevenLabs webhook structure: { type, event_timestamp, data: { conversation_id, ... } }
+            $conversationId = $payload['data']['conversation_id']
+                ?? $jsonPayload['data']['conversation_id']
+                ?? $payload['conversation_id']
                 ?? $payload['conversation']['id']
                 ?? $payload['id']
                 ?? $jsonPayload['conversation_id']
