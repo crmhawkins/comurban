@@ -110,14 +110,14 @@ class WebhookController extends Controller
     protected function verifySignature(Request $request): bool
     {
         $signature = $request->header('X-Hub-Signature-256');
-        
+
         if (!$signature) {
             // Signature verification is optional, return true if not configured
             return true;
         }
 
         $appSecret = ConfigHelper::getWhatsAppConfig('app_secret', config('services.whatsapp.app_secret'));
-        
+
         if (!$appSecret) {
             // If no secret configured, skip verification (not recommended for production)
             Log::warning('WhatsApp App Secret not configured, skipping signature validation');
@@ -126,10 +126,10 @@ class WebhookController extends Controller
 
         // Get raw request body
         $payload = $request->getContent();
-        
+
         // Calculate expected signature
         $expectedSignature = 'sha256=' . hash_hmac('sha256', $payload, $appSecret);
-        
+
         // Use hash_equals to prevent timing attacks
         return hash_equals($expectedSignature, $signature);
     }

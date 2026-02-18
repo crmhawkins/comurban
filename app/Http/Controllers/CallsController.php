@@ -92,12 +92,22 @@ class CallsController extends Controller
             // Get transcript
             $transcriptData = $this->elevenLabsService->getTranscript($conversationId);
             $transcript = null;
-            if ($transcriptData['success'] && isset($transcriptData['data']['transcript'])) {
-                $transcript = $transcriptData['data']['transcript'];
+            if ($transcriptData['success']) {
+                // Transcript can be in different formats
+                if (isset($transcriptData['data']['transcript'])) {
+                    $transcript = is_string($transcriptData['data']['transcript']) 
+                        ? $transcriptData['data']['transcript']
+                        : json_encode($transcriptData['data']['transcript']);
+                } elseif (isset($transcriptData['data']['text'])) {
+                    $transcript = $transcriptData['data']['text'];
+                } elseif (is_string($transcriptData['data'])) {
+                    $transcript = $transcriptData['data'];
+                }
             }
 
-            // Extract phone number
-            $phoneNumber = $conversation['phone_number'] 
+            // Extract phone number from user_id (this is the phone number in ElevenLabs)
+            $phoneNumber = $conversation['user_id'] 
+                ?? $conversation['phone_number'] 
                 ?? $conversation['metadata']['phone_number'] 
                 ?? $conversation['from'] 
                 ?? null;
@@ -106,25 +116,34 @@ class CallsController extends Controller
             $status = 'pending';
             if (isset($conversation['status'])) {
                 $status = match($conversation['status']) {
-                    'completed', 'ended' => 'completed',
-                    'in_progress', 'active' => 'in_progress',
-                    'failed', 'error' => 'failed',
+                    'completed', 'ended', 'COMPLETED', 'ENDED' => 'completed',
+                    'in_progress', 'active', 'IN_PROGRESS', 'ACTIVE' => 'in_progress',
+                    'failed', 'error', 'FAILED', 'ERROR' => 'failed',
                     default => 'pending',
                 };
             }
 
-            // Extract timestamps
-            $startedAt = isset($conversation['started_at']) 
-                ? \Carbon\Carbon::parse($conversation['started_at']) 
-                : null;
-            $endedAt = isset($conversation['ended_at']) 
-                ? \Carbon\Carbon::parse($conversation['ended_at']) 
-                : null;
+            // Extract timestamps - ElevenLabs uses start_time_unix_secs and end_time_unix_secs
+            $startedAt = null;
+            if (isset($conversation['start_time_unix_secs'])) {
+                $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['start_time_unix_secs']);
+            } elseif (isset($conversation['started_at'])) {
+                $startedAt = \Carbon\Carbon::parse($conversation['started_at']);
+            }
+
+            $endedAt = null;
+            if (isset($conversation['end_time_unix_secs'])) {
+                $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['end_time_unix_secs']);
+            } elseif (isset($conversation['ended_at'])) {
+                $endedAt = \Carbon\Carbon::parse($conversation['ended_at']);
+            }
 
             // Calculate duration
             $duration = null;
             if ($startedAt && $endedAt) {
                 $duration = $endedAt->diffInSeconds($startedAt);
+            } elseif (isset($conversation['duration_seconds'])) {
+                $duration = $conversation['duration_seconds'];
             } elseif (isset($conversation['duration'])) {
                 $duration = $conversation['duration'];
             }
@@ -132,6 +151,7 @@ class CallsController extends Controller
             // Extract recording URL
             $recordingUrl = $conversation['recording_url'] 
                 ?? $conversation['audio_url'] 
+                ?? $conversation['recording_audio_url']
                 ?? null;
 
             // Extract summary

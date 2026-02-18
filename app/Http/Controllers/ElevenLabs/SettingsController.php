@@ -75,12 +75,15 @@ class SettingsController extends Controller
     public function testConnection(Request $request)
     {
         try {
-            $result = $this->elevenLabsService->getConversations(['limit' => 1]);
+            $result = $this->elevenLabsService->getConversations(['page_size' => 1]);
 
             if ($result['success']) {
                 return back()->with('success', 'Conexión con ElevenLabs API exitosa.');
             } else {
-                return back()->with('error', 'Error al conectar con ElevenLabs API: ' . ($result['error']['message'] ?? 'Error desconocido'));
+                $errorMessage = is_array($result['error']) 
+                    ? ($result['error']['message'] ?? json_encode($result['error']))
+                    : ($result['error'] ?? 'Error desconocido');
+                return back()->with('error', 'Error al conectar con ElevenLabs API: ' . $errorMessage);
             }
         } catch (\Exception $e) {
             Log::error('Error testing ElevenLabs connection', [
