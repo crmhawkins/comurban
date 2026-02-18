@@ -33,69 +33,39 @@ class ProcessElevenLabsWebhook implements ShouldQueue
      */
     public function handle(ElevenLabsService $elevenLabsService): void
     {
-        Log::info('=== ProcessElevenLabsWebhook Job Started ===', [
-            'event_type' => $this->eventType,
-            'payload_keys' => array_keys($this->payload),
-            'payload' => $this->payload,
-        ]);
-
         try {
             DB::transaction(function () use ($elevenLabsService) {
                 // Extract conversation ID from payload
                 // ElevenLabs webhook structure: { type, event_timestamp, data: { conversation_id, ... } }
                 $conversationId = $this->payload['data']['conversation_id']
-                    ?? $this->payload['conversation_id'] 
-                    ?? $this->payload['conversation']['id'] 
-                    ?? $this->payload['id'] 
+                    ?? $this->payload['conversation_id']
+                    ?? $this->payload['conversation']['id']
+                    ?? $this->payload['id']
                     ?? null;
 
-                Log::info('ProcessElevenLabsWebhook - Extracted conversation ID', [
-                    'conversation_id' => $conversationId,
-                    'payload_structure' => [
-                        'has_data_conversation_id' => isset($this->payload['data']['conversation_id']),
-                        'has_conversation_id' => isset($this->payload['conversation_id']),
-                        'has_conversation' => isset($this->payload['conversation']),
-                        'has_id' => isset($this->payload['id']),
-                    ],
-                ]);
-
                 if (!$conversationId) {
-                    Log::warning('ElevenLabs webhook missing conversation ID', [
-                        'payload' => $this->payload,
-                        'event_type' => $this->eventType,
-                    ]);
+                    Log::warning('ElevenLabs webhook: falta conversation_id');
                     return;
                 }
-
-                Log::info('ProcessElevenLabsWebhook - Fetching conversation from API', [
-                    'conversation_id' => $conversationId,
-                ]);
 
                 // Get conversation details from ElevenLabs API
                 $conversationData = $elevenLabsService->getConversation($conversationId);
 
                 if (!$conversationData['success']) {
-                    Log::error('Failed to fetch conversation from ElevenLabs', [
+                    Log::error('ElevenLabs: error al obtener conversación', [
                         'conversation_id' => $conversationId,
                         'error' => $conversationData['error'] ?? 'Unknown error',
-                        'response' => $conversationData,
                     ]);
                     return;
                 }
 
-                Log::info('ProcessElevenLabsWebhook - Conversation fetched successfully', [
-                    'conversation_id' => $conversationId,
-                    'has_data' => isset($conversationData['data']),
-                    'data_keys' => isset($conversationData['data']) ? array_keys($conversationData['data']) : [],
-                ]);
-
                 $conversation = $conversationData['data'];
 
                 // Extract phone number from user_id (this is the phone number in ElevenLabs)
-                $phoneNumber = $conversation['user_id'] 
-                    ?? $conversation['phone_number'] 
-                    ?? $conversation['metadata']['phone_number'] 
-                    ?? $conversation['from'] 
+                $phoneNumber = $conversation['user_id']
+                    ?? $conversation['phone_number']
+                    ?? $conversation['metadata']['phone_number']
+                    ?? $conversation['from']
                     ?? null;
 
                 // Extract transcript from conversation data (it's already in the response)
@@ -115,7 +85,7 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                         $transcript = implode("\n\n", $transcriptLines);
                     }
                 }
-                
+
                 // If transcript is still null, try to get from API
                 if (!$transcript) {
                     $transcriptData = $elevenLabsService->getTranscript($conversationId);
@@ -192,8 +162,8 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 }
 
                 // Extract recording URL
-                $recordingUrl = $conversation['recording_url'] 
-                    ?? $conversation['audio_url'] 
+                $recordingUrl = $conversation['recording_url']
+                    ?? $conversation['audio_url']
                     ?? $conversation['recording_audio_url']
                     ?? null;
 
@@ -209,16 +179,10 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     $summary = $conversation['metadata']['summary'];
                 }
 
-                Log::info('ProcessElevenLabsWebhook - Preparing to save call', [
-                    'conversation_id' => $conversationId,
-                    'phone_number' => $phoneNumber,
-                    'status' => $status,
-                    'has_transcript' => !empty($transcript),
-                    'transcript_length' => $transcript ? strlen($transcript) : 0,
-                    'has_started_at' => !is_null($startedAt),
-                    'has_ended_at' => !is_null($endedAt),
-                    'duration' => $duration,
-                ]);
+                // Translate summary to Spanish if it exists and is not already in Spanish
+                if ($summary) {
+                    $summary = $this->translateToSpanish($summary);
+                }
 
                 // Create or update call record
                 $call = Call::updateOrCreate(
@@ -236,21 +200,73 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     ]
                 );
 
-                Log::info('=== ElevenLabs call processed successfully ===', [
+                Log::info('ElevenLabs llamada guardada', [
                     'call_id' => $call->id,
                     'conversation_id' => $conversationId,
                     'phone_number' => $phoneNumber,
-                    'status' => $status,
-                    'was_existing' => $call->wasRecentlyCreated === false,
                 ]);
             });
         } catch (\Exception $e) {
-            Log::error('Error processing ElevenLabs webhook', [
-                'event_type' => $this->eventType,
+            Log::error('ElevenLabs webhook: error al procesar', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Translate text to Spanish using MyMemory Translation API (free)
+     */
+    protected function translateToSpanish(string $text): string
+    {
+        // If text is empty or very short, return as is
+        if (empty(trim($text)) || strlen(trim($text)) < 10) {
+            return $text;
+        }
+
+        // Simple detection: if text contains common Spanish words, assume it's already in Spanish
+        $spanishIndicators = ['el ', 'la ', 'de ', 'que ', 'y ', 'en ', 'un ', 'es ', 'se ', 'no ', 'te ', 'lo ', 'le ', 'da ', 'su ', 'por ', 'son ', 'con ', 'está', 'para', 'más', 'como', 'muy', 'todo', 'pero', 'hacer', 'puede', 'tiene', 'dice', 'será', 'están', 'estos', 'estas', 'desde', 'hasta', 'donde', 'cuando', 'cómo', 'qué', 'quién', 'cuál', 'cuáles', 'cuánto', 'cuánta', 'cuántos', 'cuántas'];
+
+        $textLower = mb_strtolower($text, 'UTF-8');
+        $spanishWordCount = 0;
+        foreach ($spanishIndicators as $indicator) {
+            if (mb_strpos($textLower, $indicator, 0, 'UTF-8') !== false) {
+                $spanishWordCount++;
+            }
+        }
+
+        // If we find 3+ Spanish indicators, assume it's already in Spanish
+        if ($spanishWordCount >= 3) {
+            return $text;
+        }
+
+        try {
+            // Use MyMemory Translation API (free, no API key required)
+            $response = \Illuminate\Support\Facades\Http::timeout(5)
+                ->get('https://api.mymemory.translated.net/get', [
+                    'q' => $text,
+                    'langpair' => 'en|es',
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['responseData']['translatedText'])) {
+                    $translated = $data['responseData']['translatedText'];
+                    // MyMemory sometimes returns the same text if it can't translate
+                    // Check if translation is different from original
+                    if (mb_strtolower(trim($translated), 'UTF-8') !== mb_strtolower(trim($text), 'UTF-8')) {
+                        return $translated;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // If translation fails, return original text
+            Log::warning('Error al traducir resumen', ['error' => $e->getMessage()]);
+        }
+
+        // Return original text if translation failed
+        return $text;
     }
 }
