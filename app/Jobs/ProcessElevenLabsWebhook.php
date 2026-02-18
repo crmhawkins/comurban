@@ -68,19 +68,33 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     ?? $conversation['from'] 
                     ?? null;
 
-                // Get transcript
-                $transcriptData = $elevenLabsService->getTranscript($conversationId);
+                // Extract transcript from conversation data (it's already in the response)
                 $transcript = null;
-                if ($transcriptData['success']) {
-                    // Transcript can be in different formats
-                    if (isset($transcriptData['data']['transcript'])) {
-                        $transcript = is_string($transcriptData['data']['transcript']) 
-                            ? $transcriptData['data']['transcript']
-                            : json_encode($transcriptData['data']['transcript']);
-                    } elseif (isset($transcriptData['data']['text'])) {
-                        $transcript = $transcriptData['data']['text'];
-                    } elseif (is_string($transcriptData['data'])) {
-                        $transcript = $transcriptData['data'];
+                if (isset($conversation['transcript']) && is_array($conversation['transcript'])) {
+                    // Format transcript array into readable text
+                    $transcriptLines = [];
+                    foreach ($conversation['transcript'] as $entry) {
+                        $role = $entry['role'] ?? 'unknown';
+                        $message = $entry['message'] ?? $entry['original_message'] ?? '';
+                        if ($message) {
+                            $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
+                            $transcriptLines[] = "[{$roleLabel}]: {$message}";
+                        }
+                    }
+                    $transcript = implode("\n\n", $transcriptLines);
+                } else {
+                    // Try to get transcript from API if not in conversation data
+                    $transcriptData = $elevenLabsService->getTranscript($conversationId);
+                    if ($transcriptData['success']) {
+                        if (isset($transcriptData['data']['transcript'])) {
+                            $transcript = is_string($transcriptData['data']['transcript']) 
+                                ? $transcriptData['data']['transcript']
+                                : json_encode($transcriptData['data']['transcript']);
+                        } elseif (isset($transcriptData['data']['text'])) {
+                            $transcript = $transcriptData['data']['text'];
+                        } elseif (is_string($transcriptData['data'])) {
+                            $transcript = $transcriptData['data'];
+                        }
                     }
                 }
 
@@ -88,23 +102,30 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 $status = 'pending';
                 if (isset($conversation['status'])) {
                     $status = match($conversation['status']) {
-                        'completed', 'ended', 'COMPLETED', 'ENDED' => 'completed',
+                        'completed', 'ended', 'done', 'COMPLETED', 'ENDED', 'DONE' => 'completed',
                         'in_progress', 'active', 'IN_PROGRESS', 'ACTIVE' => 'in_progress',
                         'failed', 'error', 'FAILED', 'ERROR' => 'failed',
                         default => 'pending',
                     };
                 }
 
-                // Extract timestamps - ElevenLabs uses start_time_unix_secs and end_time_unix_secs
+                // Extract timestamps - ElevenLabs uses start_time_unix_secs in metadata
                 $startedAt = null;
-                if (isset($conversation['start_time_unix_secs'])) {
+                if (isset($conversation['metadata']['start_time_unix_secs'])) {
+                    $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['metadata']['start_time_unix_secs']);
+                } elseif (isset($conversation['start_time_unix_secs'])) {
                     $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['start_time_unix_secs']);
                 } elseif (isset($conversation['started_at'])) {
                     $startedAt = \Carbon\Carbon::parse($conversation['started_at']);
                 }
 
                 $endedAt = null;
-                if (isset($conversation['end_time_unix_secs'])) {
+                // Calculate end time from start + duration
+                if ($startedAt && isset($conversation['metadata']['call_duration_secs'])) {
+                    $endedAt = $startedAt->copy()->addSeconds($conversation['metadata']['call_duration_secs']);
+                } elseif (isset($conversation['metadata']['end_time_unix_secs'])) {
+                    $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['metadata']['end_time_unix_secs']);
+                } elseif (isset($conversation['end_time_unix_secs'])) {
                     $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['end_time_unix_secs']);
                 } elseif (isset($conversation['ended_at'])) {
                     $endedAt = \Carbon\Carbon::parse($conversation['ended_at']);
@@ -112,7 +133,9 @@ class ProcessElevenLabsWebhook implements ShouldQueue
 
                 // Calculate duration
                 $duration = null;
-                if ($startedAt && $endedAt) {
+                if (isset($conversation['metadata']['call_duration_secs'])) {
+                    $duration = $conversation['metadata']['call_duration_secs'];
+                } elseif ($startedAt && $endedAt) {
                     $duration = $endedAt->diffInSeconds($startedAt);
                 } elseif (isset($conversation['duration_seconds'])) {
                     $duration = $conversation['duration_seconds'];
@@ -126,10 +149,17 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     ?? $conversation['recording_audio_url']
                     ?? null;
 
-                // Extract summary
-                $summary = $conversation['summary'] 
-                    ?? $conversation['metadata']['summary'] 
-                    ?? null;
+                // Extract summary from analysis
+                $summary = null;
+                if (isset($conversation['analysis']['transcript_summary'])) {
+                    $summary = $conversation['analysis']['transcript_summary'];
+                } elseif (isset($conversation['analysis']['call_summary_title'])) {
+                    $summary = $conversation['analysis']['call_summary_title'];
+                } elseif (isset($conversation['summary'])) {
+                    $summary = $conversation['summary'];
+                } elseif (isset($conversation['metadata']['summary'])) {
+                    $summary = $conversation['metadata']['summary'];
+                }
 
                 // Create or update call record
                 $call = Call::updateOrCreate(

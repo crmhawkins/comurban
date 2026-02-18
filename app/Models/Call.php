@@ -36,4 +36,77 @@ class Call extends Model
     {
         return $this->belongsTo(Contact::class, 'phone_number', 'phone_number');
     }
+
+    /**
+     * Get agent name from metadata
+     */
+    public function getAgentNameAttribute(): ?string
+    {
+        // Always return "PortalFerry" as requested
+        return 'PortalFerry';
+    }
+
+    /**
+     * Get agent ID from metadata
+     */
+    public function getAgentIdAttribute(): ?string
+    {
+        return $this->metadata['agent_id'] ?? null;
+    }
+
+    /**
+     * Get call direction from metadata
+     */
+    public function getCallDirectionAttribute(): ?string
+    {
+        return $this->metadata['metadata']['phone_call']['direction'] ?? null;
+    }
+
+    /**
+     * Get agent phone number from metadata
+     */
+    public function getAgentPhoneNumberAttribute(): ?string
+    {
+        return $this->metadata['metadata']['phone_call']['agent_number'] ?? null;
+    }
+
+    /**
+     * Get external phone number from metadata
+     */
+    public function getExternalPhoneNumberAttribute(): ?string
+    {
+        return $this->metadata['metadata']['phone_call']['external_number'] ?? null;
+    }
+
+    /**
+     * Get call cost from metadata
+     */
+    public function getCallCostAttribute(): ?float
+    {
+        return $this->metadata['metadata']['cost'] ?? null;
+    }
+
+    /**
+     * Get termination reason from metadata
+     */
+    public function getTerminationReasonAttribute(): ?string
+    {
+        return $this->metadata['metadata']['termination_reason'] ?? null;
+    }
+
+    /**
+     * Get main language from metadata
+     */
+    public function getMainLanguageAttribute(): ?string
+    {
+        return $this->metadata['metadata']['main_language'] ?? null;
+    }
+
+    /**
+     * Get call success status from analysis
+     */
+    public function getCallSuccessfulAttribute(): ?string
+    {
+        return $this->metadata['analysis']['call_successful'] ?? null;
+    }
 }

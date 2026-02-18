@@ -43,8 +43,29 @@
             <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
                 <h2 class="text-xl font-semibold text-gray-900 mb-4">Transcripción</h2>
                 @if($call->transcript)
-                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ $call->transcript }}</p>
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 max-h-96 overflow-y-auto">
+                        <div class="space-y-3">
+                            @php
+                                $transcriptLines = explode("\n\n", $call->transcript);
+                            @endphp
+                            @foreach($transcriptLines as $line)
+                                @if(str_starts_with($line, '[Agente]:'))
+                                    <div class="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
+                                        <p class="text-xs font-semibold text-blue-700 mb-1">Agente (PortalFerry)</p>
+                                        <p class="text-sm text-gray-800">{{ str_replace('[Agente]:', '', $line) }}</p>
+                                    </div>
+                                @elseif(str_starts_with($line, '[Usuario]:'))
+                                    <div class="bg-green-50 border-l-4 border-green-500 p-3 rounded">
+                                        <p class="text-xs font-semibold text-green-700 mb-1">Usuario</p>
+                                        <p class="text-sm text-gray-800">{{ str_replace('[Usuario]:', '', $line) }}</p>
+                                    </div>
+                                @else
+                                    <div class="bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
+                                        <p class="text-sm text-gray-800">{{ $line }}</p>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
                     </div>
                 @else
                     <p class="text-gray-500 text-sm">No hay transcripción disponible</p>
@@ -61,12 +82,86 @@
                 </div>
             @endif
 
-            <!-- Metadata -->
+            <!-- Información Detallada -->
             @if($call->metadata)
                 <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Información Adicional</h2>
-                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <pre class="text-xs text-gray-700 overflow-auto">{{ json_encode($call->metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Información Detallada</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        @if($call->agent_name)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Agente</p>
+                                <p class="text-sm font-semibold text-gray-900">{{ $call->agent_name }}</p>
+                            </div>
+                        @endif
+                        
+                        @if($call->call_direction)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Dirección</p>
+                                <p class="text-sm text-gray-900">
+                                    @if($call->call_direction === 'inbound')
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            Entrante
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            Saliente
+                                        </span>
+                                    @endif
+                                </p>
+                            </div>
+                        @endif
+
+                        @if($call->agent_phone_number)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Número del Agente</p>
+                                <p class="text-sm text-gray-900 font-mono">{{ $call->agent_phone_number }}</p>
+                            </div>
+                        @endif
+
+                        @if($call->external_phone_number)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Número Externo</p>
+                                <p class="text-sm text-gray-900 font-mono">{{ $call->external_phone_number }}</p>
+                            </div>
+                        @endif
+
+                        @if($call->main_language)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Idioma Principal</p>
+                                <p class="text-sm text-gray-900 uppercase">{{ $call->main_language }}</p>
+                            </div>
+                        @endif
+
+                        @if($call->call_cost)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Costo</p>
+                                <p class="text-sm font-semibold text-gray-900">{{ number_format($call->call_cost / 100, 2) }} €</p>
+                            </div>
+                        @endif
+
+                        @if($call->call_successful)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Estado de la Llamada</p>
+                                <p class="text-sm text-gray-900">
+                                    @if($call->call_successful === 'success')
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            Exitosa
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
+                                            Fallida
+                                        </span>
+                                    @endif
+                                </p>
+                            </div>
+                        @endif
+
+                        @if($call->termination_reason)
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 md:col-span-2">
+                                <p class="text-xs font-medium text-gray-600 mb-1">Razón de Terminación</p>
+                                <p class="text-sm text-gray-900">{{ $call->termination_reason }}</p>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @endif
@@ -107,7 +202,25 @@
                     @if($call->elevenlabs_call_id)
                         <div>
                             <p class="text-sm font-medium text-gray-600">ID ElevenLabs</p>
-                            <p class="text-sm text-gray-900 font-mono">{{ $call->elevenlabs_call_id }}</p>
+                            <p class="text-sm text-gray-900 font-mono text-xs break-all">{{ $call->elevenlabs_call_id }}</p>
+                        </div>
+                    @endif
+                    @if($call->agent_name)
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Agente</p>
+                            <p class="text-sm text-gray-900 font-semibold">{{ $call->agent_name }}</p>
+                        </div>
+                    @endif
+                    @if($call->main_language)
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Idioma</p>
+                            <p class="text-sm text-gray-900 uppercase">{{ $call->main_language }}</p>
+                        </div>
+                    @endif
+                    @if($call->call_cost)
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Costo</p>
+                            <p class="text-sm text-gray-900 font-semibold">{{ number_format($call->call_cost / 100, 2) }} €</p>
                         </div>
                     @endif
                 </div>
