@@ -48,6 +48,7 @@ return [
     'elevenlabs' => [
         'api_key' => env('ELEVENLABS_API_KEY'),
         'base_url' => env('ELEVENLABS_API_BASE_URL', 'https://api.elevenlabs.io/v1'),
+        'webhook_secret' => env('ELEVENLABS_WEBHOOK_SECRET'),
     ],
 
 ];

@@ -156,6 +156,19 @@
                         />
                         <p class="text-xs text-gray-500 mt-1">Estado: {{ $settings['base_url_status'] ?? 'No configurado' }}</p>
                     </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Webhook Secret *</label>
+                        <input
+                            type="password"
+                            name="elevenlabs_webhook_secret"
+                            value="{{ $settings['webhook_secret_full'] ?? '' }}"
+                            placeholder="wsec_..."
+                            class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-mono bg-white"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Estado: {{ $settings['webhook_secret_status'] ?? 'No configurado' }}</p>
+                        <p class="text-xs text-gray-400 mt-1">Deja en blanco para mantener el valor actual. Se usa para verificar la firma HMAC de los webhooks.</p>
+                    </div>
                 </div>
                 
                 <div class="mt-6 flex items-center justify-between">
