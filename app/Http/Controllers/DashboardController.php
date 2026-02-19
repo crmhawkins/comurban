@@ -49,13 +49,13 @@ class DashboardController extends Controller
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i)->startOfDay();
             $dateEnd = Carbon::now()->subDays($i)->endOfDay();
-            
+
             $whatsappCount = Message::where('direction', 'inbound')
                 ->whereBetween('created_at', [$date, $dateEnd])
                 ->count();
             $callsCount = Call::whereBetween('created_at', [$date, $dateEnd])
                 ->count();
-            
+
             $consultasPorDia[] = [
                 'fecha' => $date->format('d/m'),
                 'whatsapp' => $whatsappCount,
@@ -70,11 +70,18 @@ class DashboardController extends Controller
             'llamadas' => $callsLastMonth,
         ];
 
+        // Incidencias esta semana (llamadas categorizadas como "incidencia" de esta semana)
+        $startOfWeek = Carbon::now()->startOfWeek();
+        $incidenciasThisWeek = Call::where('category', 'incidencia')
+            ->where('created_at', '>=', $startOfWeek)
+            ->count();
+
         return view('dashboard', [
             'user' => $user,
             'roles' => $roles,
             'totalConsultasLastMonth' => $totalConsultasLastMonth,
             'totalConsultasLast24h' => $totalConsultasLast24h,
+            'incidenciasThisWeek' => $incidenciasThisWeek,
             'consultasPorDia' => $consultasPorDia,
             'distribucionCanal' => $distribucionCanal,
         ]);

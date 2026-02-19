@@ -78,7 +78,7 @@
                     <div class="flex-1">
                         <p class="text-sm font-medium text-gray-600 mb-1">Incidencias esta semana</p>
                         <p class="text-3xl font-bold text-gray-900">
-                            <span class="text-gray-400">--</span>
+                            {{ number_format($incidenciasThisWeek ?? 0) }}
                         </p>
                     </div>
                     <div class="h-16 w-16 bg-yellow-500 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
@@ -88,7 +88,7 @@
                     </div>
                 </div>
                 <div class="mt-4 flex items-center text-sm">
-                    <span class="text-gray-500">Esta semana</span>
+                    <span class="text-gray-500">Esta semana (llamadas categorizadas como incidencia)</span>
                 </div>
             </div>
         </div>
