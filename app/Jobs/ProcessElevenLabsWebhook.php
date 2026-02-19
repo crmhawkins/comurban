@@ -3,8 +3,11 @@
 namespace App\Jobs;
 
 use App\Models\Call;
-use App\Services\ElevenLabsService;
+use App\Models\Contact;
+use App\Models\Incident;
 use App\Services\CallAnalysisService;
+use App\Services\ElevenLabsService;
+use App\Services\IncidentAnalysisService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -220,7 +223,20 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     'call_id' => $call->id,
                     'conversation_id' => $conversationId,
                     'phone_number' => $phoneNumber,
+                    'category' => $category,
                 ]);
+
+                // Create incident if call is categorized as "incidencia"
+                if ($category === 'incidencia' && $transcript) {
+                    try {
+                        $this->detectAndCreateIncidentFromCall($call, $transcript, $phoneNumber);
+                    } catch (\Exception $e) {
+                        Log::error('Error creating incident from call', [
+                            'call_id' => $call->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
             });
         } catch (\Exception $e) {
             Log::error('ElevenLabs webhook: error al procesar', [
@@ -284,5 +300,122 @@ class ProcessElevenLabsWebhook implements ShouldQueue
 
         // Return original text if translation failed
         return $text;
+    }
+
+    /**
+     * Detect and create incident from call if it's categorized as "incidencia"
+     */
+    protected function detectAndCreateIncidentFromCall(Call $call, string $transcript, ?string $phoneNumber): void
+    {
+        try {
+            $analysisService = new IncidentAnalysisService();
+
+            // Detect incident details from transcript
+            $detectionResult = $analysisService->detectIncident($transcript);
+
+            // Since the call is already categorized as "incidencia", we know it's an incident
+            // But we still want to get the incident type and generate summaries
+            if (!$detectionResult['is_incident']) {
+                // Force it to be an incident since call category is "incidencia"
+                $detectionResult['is_incident'] = true;
+                $detectionResult['confidence'] = 0.8; // High confidence since call was already categorized
+            }
+
+            // Check for duplicate incidents (same phone number, similar summary, within last 7 days)
+            $recentIncidents = Incident::where('phone_number', $phoneNumber)
+                ->where('source_type', 'call')
+                ->where('created_at', '>=', now()->subDays(7))
+                ->get();
+
+            $isDuplicate = false;
+            foreach ($recentIncidents as $existingIncident) {
+                // Check if incident type matches
+                if ($detectionResult['incident_type'] &&
+                    $existingIncident->incident_type === $detectionResult['incident_type']) {
+                    $isDuplicate = true;
+                    Log::info('Duplicate incident detected from call (same type)', [
+                        'existing_incident_id' => $existingIncident->id,
+                        'call_id' => $call->id,
+                        'incident_type' => $detectionResult['incident_type'],
+                    ]);
+                    break;
+                }
+            }
+
+            if ($isDuplicate) {
+                Log::info('Skipping duplicate incident creation from call', [
+                    'call_id' => $call->id,
+                    'phone_number' => $phoneNumber,
+                ]);
+                return;
+            }
+
+            // Generate incident summary
+            $incidentSummary = $analysisService->generateIncidentSummary($transcript);
+
+            // Generate conversation summary (using transcript as conversation)
+            $conversationHistory = [];
+            // Format transcript as conversation history for summary generation
+            $transcriptLines = explode("\n", $transcript);
+            foreach ($transcriptLines as $line) {
+                if (preg_match('/^\[([^\]]+)\]:\s*(.+)$/', $line, $matches)) {
+                    $role = strtolower($matches[1]);
+                    $content = $matches[2];
+                    if ($role === 'usuario' || $role === 'user') {
+                        $conversationHistory[] = ['role' => 'user', 'content' => $content];
+                    } elseif ($role === 'agente' || $role === 'agent') {
+                        $conversationHistory[] = ['role' => 'assistant', 'content' => $content];
+                    }
+                }
+            }
+            $conversationSummary = $analysisService->generateConversationSummary($conversationHistory);
+
+            // Get or create contact if phone number exists
+            $contact = null;
+            if ($phoneNumber) {
+                $contact = Contact::firstOrCreate(
+                    ['phone_number' => $phoneNumber],
+                    [
+                        'wa_id' => $phoneNumber,
+                        'name' => $phoneNumber,
+                    ]
+                );
+            }
+
+            // Create incident
+            $incident = Incident::create([
+                'source_type' => 'call',
+                'source_id' => $call->id,
+                'call_id' => $call->id,
+                'contact_id' => $contact?->id,
+                'phone_number' => $phoneNumber,
+                'incident_summary' => $incidentSummary,
+                'conversation_summary' => $conversationSummary,
+                'incident_type' => $detectionResult['incident_type'],
+                'confidence' => $detectionResult['confidence'],
+                'status' => 'open',
+                'detection_context' => [
+                    'call_id' => $call->id,
+                    'elevenlabs_call_id' => $call->elevenlabs_call_id,
+                    'transcript_length' => strlen($transcript),
+                    'detection_result' => $detectionResult,
+                ],
+            ]);
+
+            Log::info('Incident created from call successfully', [
+                'incident_id' => $incident->id,
+                'call_id' => $call->id,
+                'phone_number' => $phoneNumber,
+                'summary' => $incidentSummary,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in detectAndCreateIncidentFromCall', [
+                'call_id' => $call->id ?? null,
+                'phone_number' => $phoneNumber,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Don't throw - we don't want to break call processing if incident creation fails
+        }
     }
 }
