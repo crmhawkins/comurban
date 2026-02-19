@@ -461,12 +461,12 @@ class WhatsAppService
                 'components' => $components,
             ]);
 
+            // Use withBody() to ensure proper JSON serialization of nested arrays
+            // This ensures the example.body_text array structure is preserved correctly
             $response = Http::withToken($this->accessToken)
                 ->withoutVerifying()
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])
-                ->post($url, $payload);
+                ->withBody(json_encode($payload, JSON_UNESCAPED_UNICODE), 'application/json')
+                ->post($url);
 
             $responseData = $response->json();
 

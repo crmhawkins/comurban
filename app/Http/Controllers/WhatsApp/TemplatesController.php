@@ -143,26 +143,30 @@ class TemplatesController extends Controller
         preg_match_all('/\{\{(\d+)\}\}/', $validated['body_text'], $matches);
         if (!empty($matches[1])) {
             $maxVar = max(array_map('intval', $matches[1]));
-            // Format according to Meta API: example.body_text is an array of arrays
-            // Each variable needs an example value wrapped in an array
-            // IMPORTANT: According to Meta docs, format should be:
+            
+            // According to Meta API documentation, when BODY has variables,
+            // the example field must be structured as:
             // example: { body_text: [["value1"], ["value2"], ["value3"]] }
-            $exampleValues = [];
+            // Each variable placeholder needs an example value in an array
+            
+            $exampleBodyText = [];
             for ($i = 1; $i <= $maxVar; $i++) {
-                // Each variable example must be an array containing a single string
-                $exampleValues[] = ['Ejemplo ' . $i];
+                // Each example value must be wrapped in an array
+                $exampleBodyText[] = ['Ejemplo ' . $i];
             }
+            
             // Meta requires example field when variables are present
-            // The example must be an object with body_text as an array of arrays
-            // Format: { "example": { "body_text": [["value1"], ["value2"]] } }
             $body['example'] = [
-                'body_text' => $exampleValues
+                'body_text' => $exampleBodyText
             ];
             
             // Log the example structure to verify format
             Log::info('BODY example structure', [
                 'example' => $body['example'],
                 'example_json' => json_encode($body['example'], JSON_PRETTY_PRINT),
+                'example_body_text_type' => gettype($body['example']['body_text']),
+                'example_body_text_count' => count($body['example']['body_text']),
+                'first_example_type' => isset($body['example']['body_text'][0]) ? gettype($body['example']['body_text'][0]) : 'none',
             ]);
         }
         
