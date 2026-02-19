@@ -62,4 +62,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/clear', [\App\Http\Controllers\LogsController::class, 'clear'])->name('clear');
         Route::post('/test', [\App\Http\Controllers\LogsController::class, 'test'])->name('test');
     });
+
+    // Rutas de Ajustes de Usuario
+    Route::prefix('user-settings')->name('user-settings.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\UserSettingsController::class, 'index'])->name('index');
+        Route::put('/profile', [\App\Http\Controllers\UserSettingsController::class, 'updateProfile'])->name('update-profile');
+        Route::put('/password', [\App\Http\Controllers\UserSettingsController::class, 'updatePassword'])->name('update-password');
+    });
 });

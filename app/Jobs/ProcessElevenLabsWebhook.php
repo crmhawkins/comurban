@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Call;
 use App\Services\ElevenLabsService;
+use App\Services\CallAnalysisService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -184,12 +185,27 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     $summary = $this->translateToSpanish($summary);
                 }
 
+                // Analyze call category using AI
+                $category = 'desconocido';
+                if ($transcript) {
+                    try {
+                        $analysisService = new CallAnalysisService();
+                        $category = $analysisService->analyzeCall($transcript);
+                    } catch (\Exception $e) {
+                        Log::warning('Error al analizar categoría de llamada', [
+                            'error' => $e->getMessage(),
+                            'conversation_id' => $conversationId,
+                        ]);
+                    }
+                }
+
                 // Create or update call record
                 $call = Call::updateOrCreate(
                     ['elevenlabs_call_id' => $conversationId],
                     [
                         'phone_number' => $phoneNumber,
                         'status' => $status,
+                        'category' => $category,
                         'transcript' => $transcript,
                         'metadata' => $conversation,
                         'started_at' => $startedAt,

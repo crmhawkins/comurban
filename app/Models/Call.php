@@ -10,6 +10,7 @@ class Call extends Model
         'elevenlabs_call_id',
         'phone_number',
         'status',
+        'category',
         'transcript',
         'metadata',
         'started_at',

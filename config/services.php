@@ -45,11 +45,17 @@ return [
         'business_id' => env('WHATSAPP_BUSINESS_ID'),
     ],
 
-    'elevenlabs' => [
-        'api_key' => env('ELEVENLABS_API_KEY'),
-        'base_url' => env('ELEVENLABS_API_BASE_URL', 'https://api.elevenlabs.io/v1'),
-        'webhook_secret' => env('ELEVENLABS_WEBHOOK_SECRET'),
-        'agent_id' => env('ELEVENLABS_AGENT_ID'),
-    ],
+        'elevenlabs' => [
+            'api_key' => env('ELEVENLABS_API_KEY'),
+            'base_url' => env('ELEVENLABS_API_BASE_URL', 'https://api.elevenlabs.io/v1'),
+            'webhook_secret' => env('ELEVENLABS_WEBHOOK_SECRET'),
+            'agent_id' => env('ELEVENLABS_AGENT_ID'),
+        ],
 
-];
+        'local_ai' => [
+            'url' => env('LOCAL_AI_URL', 'https://aiapi.hawkins.es/chat/chat'),
+            'api_key' => env('LOCAL_AI_API_KEY', 'OllamaAPI_2024_K8mN9pQ2rS5tU7vW3xY6zA1bC4eF8hJ0lM'),
+            'model' => env('LOCAL_AI_MODEL', 'gpt-oss:120b-cloud'),
+        ],
+
+    ];

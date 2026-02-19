@@ -54,7 +54,7 @@
     @endif
 
     <!-- Estadísticas -->
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-6">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-4 lg:grid-cols-8 mb-6">
         <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
             <p class="text-sm font-medium text-gray-600">Total</p>
             <p class="text-2xl font-bold text-gray-900">{{ $stats['total'] ?? 0 }}</p>
@@ -70,6 +70,22 @@
         <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
             <p class="text-sm font-medium text-gray-600">Fallidas</p>
             <p class="text-2xl font-bold text-red-600">{{ $stats['failed'] ?? 0 }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
+            <p class="text-sm font-medium text-gray-600">Incidencia</p>
+            <p class="text-2xl font-bold text-orange-600">{{ $stats['incidencia'] ?? 0 }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
+            <p class="text-sm font-medium text-gray-600">Consulta</p>
+            <p class="text-2xl font-bold text-blue-600">{{ $stats['consulta'] ?? 0 }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
+            <p class="text-sm font-medium text-gray-600">Pago</p>
+            <p class="text-2xl font-bold text-green-600">{{ $stats['pago'] ?? 0 }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
+            <p class="text-sm font-medium text-gray-600">Desconocido</p>
+            <p class="text-2xl font-bold text-gray-600">{{ $stats['desconocido'] ?? 0 }}</p>
         </div>
     </div>
 
@@ -95,6 +111,18 @@
                     <option value="in_progress" {{ ($filters['status'] ?? '') === 'in_progress' ? 'selected' : '' }}>En Progreso</option>
                     <option value="failed" {{ ($filters['status'] ?? '') === 'failed' ? 'selected' : '' }}>Fallidas</option>
                     <option value="pending" {{ ($filters['status'] ?? '') === 'pending' ? 'selected' : '' }}>Pendientes</option>
+                </select>
+            </div>
+            <div>
+                <select
+                    name="category"
+                    class="block px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
+                >
+                    <option value="">Todas las categorías</option>
+                    <option value="incidencia" {{ ($filters['category'] ?? '') === 'incidencia' ? 'selected' : '' }}>Incidencia</option>
+                    <option value="consulta" {{ ($filters['category'] ?? '') === 'consulta' ? 'selected' : '' }}>Consulta</option>
+                    <option value="pago" {{ ($filters['category'] ?? '') === 'pago' ? 'selected' : '' }}>Pago</option>
+                    <option value="desconocido" {{ ($filters['category'] ?? '') === 'desconocido' ? 'selected' : '' }}>Desconocido</option>
                 </select>
             </div>
             <div>
@@ -135,7 +163,7 @@
                                     </div>
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <div class="flex items-center space-x-2">
+                                    <div class="flex items-center space-x-2 flex-wrap">
                                         <p class="text-sm font-semibold text-gray-900">
                                             {{ $call->formatted_phone_number ?? $call->phone_number ?? 'Sin número' }}
                                         </p>
@@ -146,6 +174,14 @@
                                             {{ $call->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
                                         ">
                                             {{ ucfirst(str_replace('_', ' ', $call->status)) }}
+                                        </span>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                            {{ $call->category === 'incidencia' ? 'bg-orange-100 text-orange-800' : '' }}
+                                            {{ $call->category === 'consulta' ? 'bg-blue-100 text-blue-800' : '' }}
+                                            {{ $call->category === 'pago' ? 'bg-green-100 text-green-800' : '' }}
+                                            {{ $call->category === 'desconocido' ? 'bg-gray-100 text-gray-800' : '' }}
+                                        ">
+                                            {{ ucfirst($call->category ?? 'desconocido') }}
                                         </span>
                                     </div>
                                     @if($call->transcript)

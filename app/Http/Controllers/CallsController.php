@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Call;
 use App\Services\ElevenLabsService;
+use App\Services\CallAnalysisService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -29,11 +30,18 @@ class CallsController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Filter by category
+        if ($request->has('category') && $request->category) {
+            $query->where('category', $request->category);
+        }
+
         // Search by phone number
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where('phone_number', 'like', "%{$search}%")
+            $query->where(function($q) use ($search) {
+                $q->where('phone_number', 'like', "%{$search}%")
                   ->orWhere('transcript', 'like', "%{$search}%");
+            });
         }
 
         $calls = $query->paginate(20);
@@ -44,6 +52,10 @@ class CallsController extends Controller
             'completed' => Call::where('status', 'completed')->count(),
             'in_progress' => Call::where('status', 'in_progress')->count(),
             'failed' => Call::where('status', 'failed')->count(),
+            'incidencia' => Call::where('category', 'incidencia')->count(),
+            'consulta' => Call::where('category', 'consulta')->count(),
+            'pago' => Call::where('category', 'pago')->count(),
+            'desconocido' => Call::where('category', 'desconocido')->count(),
         ];
 
         return view('calls.index', [
@@ -51,6 +63,7 @@ class CallsController extends Controller
             'stats' => $stats,
             'filters' => [
                 'status' => $request->status,
+                'category' => $request->category,
                 'search' => $request->search,
             ],
         ]);
@@ -207,12 +220,26 @@ class CallsController extends Controller
                 $summary = $conversation['metadata']['summary'];
             }
 
+            // Analyze call category using AI
+            $category = 'desconocido';
+            if ($transcript) {
+                try {
+                    $analysisService = new CallAnalysisService();
+                    $category = $analysisService->analyzeCall($transcript);
+                } catch (\Exception $e) {
+                    Log::warning('Error al analizar categoría de llamada en sync', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             // Create or update call record
             $call = Call::updateOrCreate(
                 ['elevenlabs_call_id' => $conversationId],
                 [
                     'phone_number' => $phoneNumber,
                     'status' => $status,
+                    'category' => $category,
                     'transcript' => $transcript,
                     'metadata' => $conversation,
                     'started_at' => $startedAt,

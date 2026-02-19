@@ -32,6 +32,14 @@
                 ">
                     {{ ucfirst(str_replace('_', ' ', $call->status)) }}
                 </span>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {{ $call->category === 'incidencia' ? 'bg-orange-100 text-orange-800' : '' }}
+                    {{ $call->category === 'consulta' ? 'bg-blue-100 text-blue-800' : '' }}
+                    {{ $call->category === 'pago' ? 'bg-green-100 text-green-800' : '' }}
+                    {{ ($call->category === 'desconocido' || !$call->category) ? 'bg-gray-100 text-gray-800' : '' }}
+                ">
+                    {{ ucfirst($call->category ?? 'desconocido') }}
+                </span>
             </div>
         </div>
     </div>
@@ -100,6 +108,17 @@
                     <div>
                         <p class="text-sm font-medium text-gray-600">Estado</p>
                         <p class="text-sm text-gray-900">{{ ucfirst(str_replace('_', ' ', $call->status)) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Categoría</p>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {{ $call->category === 'incidencia' ? 'bg-orange-100 text-orange-800' : '' }}
+                            {{ $call->category === 'consulta' ? 'bg-blue-100 text-blue-800' : '' }}
+                            {{ $call->category === 'pago' ? 'bg-green-100 text-green-800' : '' }}
+                            {{ ($call->category === 'desconocido' || !$call->category) ? 'bg-gray-100 text-gray-800' : '' }}
+                        ">
+                            {{ ucfirst($call->category ?? 'desconocido') }}
+                        </span>
                     </div>
                     @if($call->started_at)
                         <div>
