@@ -26,37 +26,37 @@
     </div>
 
     <!-- Métricas principales -->
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <!-- Métrica 1 -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+        <!-- Métrica 1: Total Consultas -->
         <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
             <div class="p-6">
                 <div class="flex items-center justify-between">
                     <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-600 mb-1">Total Usuarios</p>
+                        <p class="text-sm font-medium text-gray-600 mb-1">Total Consultas</p>
                         <p class="text-3xl font-bold text-gray-900">
-                            <span class="text-gray-400">--</span>
+                            {{ number_format($totalConsultasLastMonth) }}
                         </p>
                     </div>
                     <div class="h-16 w-16 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                         </svg>
                     </div>
                 </div>
                 <div class="mt-4 flex items-center text-sm">
-                    <span class="text-gray-500">Última actualización: --</span>
+                    <span class="text-gray-500">Último mes (WhatsApp + Llamadas)</span>
                 </div>
             </div>
         </div>
 
-        <!-- Métrica 2 -->
+        <!-- Métrica 2: Actividad Hoy -->
         <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
             <div class="p-6">
                 <div class="flex items-center justify-between">
                     <div class="flex-1">
                         <p class="text-sm font-medium text-gray-600 mb-1">Actividad Hoy</p>
                         <p class="text-3xl font-bold text-gray-900">
-                            <span class="text-gray-400">--</span>
+                            {{ number_format($totalConsultasLast24h) }}
                         </p>
                     </div>
                     <div class="h-16 w-16 bg-green-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
@@ -71,46 +71,24 @@
             </div>
         </div>
 
-        <!-- Métrica 3 -->
+        <!-- Métrica 3: Incidencias esta semana -->
         <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
             <div class="p-6">
                 <div class="flex items-center justify-between">
                     <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-600 mb-1">Ingresos</p>
+                        <p class="text-sm font-medium text-gray-600 mb-1">Incidencias esta semana</p>
                         <p class="text-3xl font-bold text-gray-900">
                             <span class="text-gray-400">--</span>
                         </p>
                     </div>
                     <div class="h-16 w-16 bg-yellow-500 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                         </svg>
                     </div>
                 </div>
                 <div class="mt-4 flex items-center text-sm">
-                    <span class="text-gray-500">Este mes</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Métrica 4 -->
-        <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200">
-            <div class="p-6">
-                <div class="flex items-center justify-between">
-                    <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-600 mb-1">Crecimiento</p>
-                        <p class="text-3xl font-bold text-gray-900">
-                            <span class="text-gray-400">--</span>
-                        </p>
-                    </div>
-                    <div class="h-16 w-16 bg-red-500 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                        </svg>
-                    </div>
-                </div>
-                <div class="mt-4 flex items-center text-sm">
-                    <span class="text-gray-500">Comparado con mes anterior</span>
+                    <span class="text-gray-500">Esta semana</span>
                 </div>
             </div>
         </div>
@@ -154,48 +132,33 @@
         </div>
     </div>
 
-    <!-- Gráficos placeholder -->
+    <!-- Gráficos -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
-        <!-- Gráfico 1 -->
+        <!-- Gráfico 1: Consultas por día (últimos 7 días) -->
         <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-900">Gráfico de Tendencias</h3>
-                <div class="h-10 w-10 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center">
+                <h3 class="text-lg font-semibold text-gray-900">Consultas por Día</h3>
+                <div class="h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">
                     <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
                 </div>
             </div>
-            <div class="h-64 flex items-center justify-center bg-gradient-to-br from-gray-50 to-indigo-50/30 rounded-xl border-2 border-dashed border-gray-200">
-                <div class="text-center">
-                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                    <p class="text-sm font-medium text-gray-500">Placeholder para gráfico de tendencias</p>
-                </div>
-            </div>
+            <canvas id="consultasPorDiaChart" class="h-64"></canvas>
         </div>
 
-        <!-- Gráfico 2 -->
+        <!-- Gráfico 2: Distribución por canal -->
         <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-900">Distribución por Categorías</h3>
-                <div class="h-10 w-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                <h3 class="text-lg font-semibold text-gray-900">Distribución por Canal</h3>
+                <div class="h-10 w-10 bg-purple-100 rounded-lg flex items-center justify-center">
                     <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
                     </svg>
                 </div>
             </div>
-            <div class="h-64 flex items-center justify-center bg-gradient-to-br from-gray-50 to-purple-50/30 rounded-xl border-2 border-dashed border-gray-200">
-                <div class="text-center">
-                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
-                    </svg>
-                    <p class="text-sm font-medium text-gray-500">Placeholder para gráfico de distribución</p>
-                </div>
-            </div>
+            <canvas id="distribucionCanalChart" class="h-64"></canvas>
         </div>
     </div>
 
@@ -334,4 +297,110 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // Gráfica de consultas por día
+    const consultasPorDiaCtx = document.getElementById('consultasPorDiaChart').getContext('2d');
+    new Chart(consultasPorDiaCtx, {
+        type: 'line',
+        data: {
+            labels: {!! json_encode(array_column($consultasPorDia, 'fecha')) !!},
+            datasets: [
+                {
+                    label: 'WhatsApp',
+                    data: {!! json_encode(array_column($consultasPorDia, 'whatsapp')) !!},
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                },
+                {
+                    label: 'Llamadas',
+                    data: {!! json_encode(array_column($consultasPorDia, 'llamadas')) !!},
+                    borderColor: 'rgb(147, 51, 234)',
+                    backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                },
+                {
+                    label: 'Total',
+                    data: {!! json_encode(array_column($consultasPorDia, 'total')) !!},
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+
+    // Gráfica de distribución por canal
+    const distribucionCanalCtx = document.getElementById('distribucionCanalChart').getContext('2d');
+    new Chart(distribucionCanalCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['WhatsApp', 'Llamadas'],
+            datasets: [{
+                data: [
+                    {{ $distribucionCanal['whatsapp'] }},
+                    {{ $distribucionCanal['llamadas'] }}
+                ],
+                backgroundColor: [
+                    'rgb(34, 197, 94)',
+                    'rgb(147, 51, 234)'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                            label += context.parsed + ' (' + percentage + '%)';
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+@endpush
 @endsection
