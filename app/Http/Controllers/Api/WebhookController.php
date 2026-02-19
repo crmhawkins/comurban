@@ -19,19 +19,19 @@ class WebhookController extends Controller
     {
         // Meta sends parameters as hub.mode, hub.verify_token, hub.challenge
         // Laravel converts dots to underscores in query parameters, but we need to handle both
-        $mode = $request->input('hub.mode') 
-            ?? $request->query('hub.mode') 
-            ?? $request->input('hub_mode') 
+        $mode = $request->input('hub.mode')
+            ?? $request->query('hub.mode')
+            ?? $request->input('hub_mode')
             ?? $request->query('hub_mode');
-            
-        $token = $request->input('hub.verify_token') 
-            ?? $request->query('hub.verify_token') 
-            ?? $request->input('hub_verify_token') 
+
+        $token = $request->input('hub.verify_token')
+            ?? $request->query('hub.verify_token')
+            ?? $request->input('hub_verify_token')
             ?? $request->query('hub_verify_token');
-            
-        $challenge = $request->input('hub.challenge') 
-            ?? $request->query('hub.challenge') 
-            ?? $request->input('hub_challenge') 
+
+        $challenge = $request->input('hub.challenge')
+            ?? $request->query('hub.challenge')
+            ?? $request->input('hub_challenge')
             ?? $request->query('hub_challenge');
 
         // Also try to get from raw query string
@@ -143,12 +143,22 @@ class WebhookController extends Controller
 
     /**
      * Verify webhook signature from Meta
+     * Meta uses X-Hub-Signature-256 header with format: sha256=<hash>
+     * The hash is calculated as: HMAC_SHA256(raw_body, app_secret)
      */
     protected function verifySignature(Request $request): bool
     {
         $signature = $request->header('X-Hub-Signature-256');
 
         if (!$signature) {
+            // If no signature header, check if we should require it
+            $appSecret = ConfigHelper::getWhatsAppConfig('app_secret', config('services.whatsapp.app_secret'));
+            if ($appSecret) {
+                Log::warning('WhatsApp webhook: Signature header missing but App Secret is configured', [
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            }
             // Signature verification is optional, return true if not configured
             return true;
         }
@@ -157,17 +167,46 @@ class WebhookController extends Controller
 
         if (!$appSecret) {
             // If no secret configured, skip verification (not recommended for production)
-            Log::warning('WhatsApp App Secret not configured, skipping signature validation');
+            Log::warning('WhatsApp App Secret not configured, skipping signature validation', [
+                'signature_header_present' => true,
+                'signature_header' => substr($signature, 0, 20) . '...',
+            ]);
             return true;
         }
 
-        // Get raw request body
+        // Get raw request body (must be raw, not parsed)
         $payload = $request->getContent();
 
+        if (empty($payload)) {
+            Log::warning('WhatsApp webhook: Empty payload for signature verification', [
+                'ip' => $request->ip(),
+            ]);
+            return false;
+        }
+
         // Calculate expected signature
+        // Meta format: sha256=<hash>
         $expectedSignature = 'sha256=' . hash_hmac('sha256', $payload, $appSecret);
 
         // Use hash_equals to prevent timing attacks
-        return hash_equals($expectedSignature, $signature);
+        $isValid = hash_equals($expectedSignature, $signature);
+
+        if (!$isValid) {
+            Log::warning('WhatsApp webhook signature validation failed', [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'signature_received' => substr($signature, 0, 30) . '...',
+                'signature_expected' => substr($expectedSignature, 0, 30) . '...',
+                'payload_length' => strlen($payload),
+                'app_secret_configured' => !empty($appSecret),
+                'app_secret_length' => strlen($appSecret),
+            ]);
+        } else {
+            Log::debug('WhatsApp webhook signature validated successfully', [
+                'ip' => $request->ip(),
+            ]);
+        }
+
+        return $isValid;
     }
 }
