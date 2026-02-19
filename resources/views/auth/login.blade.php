@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'Laravel') }} - Iniciar Sesión</title>
+    <title>{{ config('app.name', 'Hawkins') }} - Iniciar Sesión</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
@@ -125,7 +125,7 @@
 
             <!-- Footer -->
             <p class="mt-6 text-center text-sm text-gray-600">
-                © {{ date('Y') }} {{ config('app.name', 'Comurban') }}. Todos los derechos reservados.
+                © {{ date('Y') }} {{ config('app.name', 'Hawkins') }}. Todos los derechos reservados.
             </p>
         </div>
     </div>

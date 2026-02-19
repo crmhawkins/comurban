@@ -21,6 +21,7 @@ class LocalAIService
 
     /**
      * Generate AI response based on user message and conversation context
+     * Uses fallback: tries gpt-oss:120b-cloud first, then qwen3:latest if it fails
      */
     public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null): array
     {
@@ -31,11 +32,44 @@ class LocalAIService
             ];
         }
 
-        try {
-            // Build the prompt
-            $prompt = $this->buildPrompt($userMessage, $conversationHistory, $systemPrompt);
+        // Build the prompt once
+        $prompt = $this->buildPrompt($userMessage, $conversationHistory, $systemPrompt);
 
-            Log::info('Local AI: Generating response', [
+        // Try primary model first (gpt-oss:120b-cloud)
+        $primaryModel = 'gpt-oss:120b-cloud';
+        $result = $this->tryModel($prompt, $primaryModel, $userMessage, $conversationHistory, $systemPrompt);
+
+        // If primary model fails, try fallback (qwen3:latest)
+        if (!$result['success']) {
+            $isRateLimitError = $this->isRateLimitError($result);
+            
+            Log::warning('Local AI: Primary model failed, trying fallback', [
+                'primary_model' => $primaryModel,
+                'error' => $result['error'] ?? 'Unknown error',
+                'is_rate_limit' => $isRateLimitError,
+            ]);
+
+            $fallbackModel = 'qwen3:latest';
+            $result = $this->tryModel($prompt, $fallbackModel, $userMessage, $conversationHistory, $systemPrompt);
+
+            if ($result['success']) {
+                Log::info('Local AI: Fallback model succeeded', [
+                    'fallback_model' => $fallbackModel,
+                ]);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Try to generate response with a specific model
+     */
+    protected function tryModel(string $prompt, string $model, string $userMessage, array $conversationHistory, ?string $systemPrompt): array
+    {
+        try {
+            Log::info('Local AI: Attempting with model', [
+                'model' => $model,
                 'user_message_length' => strlen($userMessage),
                 'conversation_history_count' => count($conversationHistory),
                 'has_system_prompt' => !empty($systemPrompt),
@@ -49,7 +83,7 @@ class LocalAIService
                 ->timeout(60) // 60 seconds timeout
                 ->post($this->url, [
                     'prompt' => $prompt,
-                    'modelo' => $this->model,
+                    'modelo' => $model,
                 ]);
 
             if ($response->successful()) {
@@ -64,6 +98,7 @@ class LocalAIService
 
                 if ($aiResponse) {
                     Log::info('Local AI: Response generated successfully', [
+                        'model' => $model,
                         'response_length' => strlen($aiResponse),
                     ]);
 
@@ -71,10 +106,12 @@ class LocalAIService
                         'success' => true,
                         'response' => trim($aiResponse),
                         'raw_data' => $data,
+                        'model_used' => $model,
                     ];
                 }
 
                 Log::warning('Local AI: Response generated but no text found', [
+                    'model' => $model,
                     'data' => $data,
                 ]);
 
@@ -82,11 +119,13 @@ class LocalAIService
                     'success' => false,
                     'error' => 'No response text found in AI response',
                     'raw_data' => $data,
+                    'model' => $model,
                 ];
             }
 
             $errorData = $response->json();
             Log::error('Local AI: API request failed', [
+                'model' => $model,
                 'status' => $response->status(),
                 'error' => $errorData,
             ]);
@@ -95,9 +134,12 @@ class LocalAIService
                 'success' => false,
                 'error' => $errorData['error'] ?? 'Unknown error from AI service',
                 'status' => $response->status(),
+                'model' => $model,
+                'error_data' => $errorData,
             ];
         } catch (\Exception $e) {
             Log::error('Local AI: Exception occurred', [
+                'model' => $model,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -105,8 +147,42 @@ class LocalAIService
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
+                'model' => $model,
             ];
         }
+    }
+
+    /**
+     * Check if error is a rate limit error
+     */
+    protected function isRateLimitError(array $result): bool
+    {
+        $error = $result['error'] ?? '';
+        $errorLower = strtolower($error);
+        
+        // Check for common rate limit indicators
+        $rateLimitKeywords = [
+            'rate limit',
+            'rate_limit',
+            'too many requests',
+            'quota exceeded',
+            'quota',
+            'limit exceeded',
+            '429',
+        ];
+
+        foreach ($rateLimitKeywords as $keyword) {
+            if (str_contains($errorLower, $keyword)) {
+                return true;
+            }
+        }
+
+        // Check status code
+        if (isset($result['status']) && $result['status'] === 429) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
