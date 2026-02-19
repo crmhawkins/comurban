@@ -496,12 +496,23 @@ class WhatsAppService
                 'json_preview' => substr($jsonPayload, 0, 500),
             ]);
             
-            // Use asJson() to let Laravel handle JSON serialization
-            // This ensures proper encoding of nested structures
+            // Try using withBody() with explicit JSON encoding
+            // Sometimes asJson() doesn't properly serialize nested arrays
+            // Use withBody() to have full control over JSON serialization
+            $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            Log::info('=== JSON PAYLOAD BEFORE SENDING (withBody) ===', [
+                'json' => $jsonPayload,
+                'json_decoded' => json_decode($jsonPayload, true),
+            ]);
+            
             $response = Http::withToken($this->accessToken)
                 ->withoutVerifying()
-                ->asJson()
-                ->post($url, $payload);
+                ->withBody($jsonPayload, 'application/json')
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($url);
             
             // Log the raw response for debugging
             Log::info('=== META API RESPONSE ===', [

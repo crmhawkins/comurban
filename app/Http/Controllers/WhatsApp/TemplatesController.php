@@ -154,30 +154,32 @@ class TemplatesController extends Controller
             
             // According to Meta API documentation, when BODY has variables,
             // the example field must be structured as:
-            // example: { body_text: ["value1", "value2", "value3"] }
-            // IMPORTANT: body_text should be a flat array of strings, NOT nested arrays
+            // example: { body_text: [["value1", "value2", "value3"]] }
+            // IMPORTANT: body_text must be an array containing ONE array with all example values
             
-            // Build example values as a flat array of strings
-            $exampleBodyText = [];
+            // Build example values - all values in a single nested array
+            $exampleValues = [];
             for ($i = 1; $i <= $maxVar; $i++) {
-                // Format: ["value1", "value2", "value3"] - flat array of strings
-                $exampleBodyText[] = 'Ejemplo ' . $i;
+                $exampleValues[] = 'Ejemplo ' . $i;
             }
             
             // Meta requires example field when variables are present
-            // The example object must have body_text as a flat array of strings
+            // Format: body_text must be [["value1", "value2", "value3"]] - array of arrays
+            // All example values go in a single inner array
             $body['example'] = [
-                'body_text' => $exampleBodyText
+                'body_text' => [$exampleValues] // Wrap in an additional array
             ];
             
-            Log::info('BODY example format (CORRECTED)', [
-                'format' => 'Flat array of strings',
+            Log::info('BODY example format (FINAL CORRECTION)', [
+                'format' => 'Array of arrays - all values in one inner array',
                 'example' => $body['example'],
                 'example_json' => json_encode($body['example'], JSON_PRETTY_PRINT),
                 'body_text_type' => gettype($body['example']['body_text']),
                 'body_text_is_array' => is_array($body['example']['body_text']),
+                'body_text_count' => count($body['example']['body_text']),
                 'first_element_type' => isset($body['example']['body_text'][0]) ? gettype($body['example']['body_text'][0]) : 'none',
-                'first_element_value' => isset($body['example']['body_text'][0]) ? $body['example']['body_text'][0] : 'none',
+                'first_element_is_array' => isset($body['example']['body_text'][0]) ? is_array($body['example']['body_text'][0]) : false,
+                'first_element_count' => isset($body['example']['body_text'][0]) && is_array($body['example']['body_text'][0]) ? count($body['example']['body_text'][0]) : 0,
             ]);
             
             // Double-check: ensure example is properly structured
