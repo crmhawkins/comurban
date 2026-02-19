@@ -191,9 +191,31 @@ class WebhookController extends Controller
             return true;
         }
 
+        // Get App Secret directly from database (bypassing cache for debugging)
+        $appSecretFromDbDirect = \App\Models\Setting::where('key', 'whatsapp_app_secret')->first();
+        $appSecretFromDbDirectValue = $appSecretFromDbDirect ? $appSecretFromDbDirect->value : null;
+
+        // Also get from ConfigHelper (with cache)
         $appSecret = ConfigHelper::getWhatsAppConfig('app_secret', config('services.whatsapp.app_secret'));
 
-        if (!$appSecret) {
+        // Log both values for comparison
+        Log::debug('WhatsApp App Secret retrieval comparison', [
+            'from_db_direct' => $appSecretFromDbDirectValue ? substr($appSecretFromDbDirectValue, 0, 5) . '...' . substr($appSecretFromDbDirectValue, -5) : null,
+            'from_db_direct_length' => $appSecretFromDbDirectValue ? strlen($appSecretFromDbDirectValue) : null,
+            'from_db_direct_first_char' => $appSecretFromDbDirectValue ? substr($appSecretFromDbDirectValue, 0, 1) : null,
+            'from_db_direct_last_char' => $appSecretFromDbDirectValue ? substr($appSecretFromDbDirectValue, -1) : null,
+            'from_confighelper' => $appSecret ? substr($appSecret, 0, 5) . '...' . substr($appSecret, -5) : null,
+            'from_confighelper_length' => $appSecret ? strlen($appSecret) : null,
+            'from_confighelper_first_char' => $appSecret ? substr($appSecret, 0, 1) : null,
+            'from_confighelper_last_char' => $appSecret ? substr($appSecret, -1) : null,
+            'values_match' => $appSecretFromDbDirectValue === $appSecret,
+            'from_config' => config('services.whatsapp.app_secret') ? substr(config('services.whatsapp.app_secret'), 0, 5) . '...' . substr(config('services.whatsapp.app_secret'), -5) : null,
+        ]);
+
+        // Use the direct database value if available, otherwise use ConfigHelper
+        $appSecretToUse = $appSecretFromDbDirectValue ?: $appSecret;
+
+        if (!$appSecretToUse) {
             // If no secret configured, skip verification (not recommended for production)
             Log::warning('WhatsApp App Secret not configured, skipping signature validation', [
                 'signature_header_present' => true,
@@ -201,6 +223,9 @@ class WebhookController extends Controller
             ]);
             return true;
         }
+
+        // Update appSecret variable to use the direct value
+        $appSecret = $appSecretToUse;
 
         // Get raw request body (must be raw, not parsed)
         // This reads the raw stream before Laravel processes it
