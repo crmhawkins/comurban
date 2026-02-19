@@ -93,7 +93,30 @@ class WebhookController extends Controller
 
         // Meta sends POST request for webhook events
         try {
+            // Log initial request info
+            Log::info('WhatsApp webhook POST received', [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'content_type' => $request->header('Content-Type'),
+                'content_length' => $request->header('Content-Length'),
+                'signature_header' => $request->header('X-Hub-Signature-256') ? 'present' : 'missing',
+                'all_headers' => $request->headers->all(),
+            ]);
+
+            // IMPORTANT: Verify signature BEFORE processing the request
+            // This must be done first because getContent() reads the raw body
+            // and once read, the stream is consumed
+            $signatureValid = $this->verifySignature($request);
+            
+            // Now get the payload (after signature verification)
             $payload = $request->all();
+            
+            Log::debug('WhatsApp webhook payload parsed', [
+                'payload_keys' => array_keys($payload),
+                'payload_size' => strlen(json_encode($payload)),
+                'has_entry' => isset($payload['entry']),
+                'entry_count' => isset($payload['entry']) ? count($payload['entry']) : 0,
+            ]);
 
             // Log the webhook event
             $webhookEvent = WebhookEvent::create([
@@ -102,12 +125,14 @@ class WebhookController extends Controller
                 'processed' => false,
             ]);
 
-            // Verify signature if configured (but don't block processing)
-            $signatureValid = $this->verifySignature($request);
             if (!$signatureValid) {
                 Log::warning('Webhook signature validation failed, but processing anyway', [
                     'ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
+                    'webhook_event_id' => $webhookEvent->id,
+                ]);
+            } else {
+                Log::debug('Webhook signature validated successfully', [
                     'webhook_event_id' => $webhookEvent->id,
                 ]);
             }
@@ -145,6 +170,9 @@ class WebhookController extends Controller
      * Verify webhook signature from Meta
      * Meta uses X-Hub-Signature-256 header with format: sha256=<hash>
      * The hash is calculated as: HMAC_SHA256(raw_body, app_secret)
+     *
+     * IMPORTANT: This must be called BEFORE $request->all() or any method that reads the body,
+     * because once the stream is consumed, getContent() will return empty.
      */
     protected function verifySignature(Request $request): bool
     {
@@ -175,35 +203,107 @@ class WebhookController extends Controller
         }
 
         // Get raw request body (must be raw, not parsed)
-        $payload = $request->getContent();
-
-        if (empty($payload)) {
+        // This reads the raw stream before Laravel processes it
+        $rawPayload = $request->getContent();
+        
+        Log::debug('WhatsApp webhook raw payload retrieved', [
+            'payload_length' => strlen($rawPayload),
+            'payload_empty' => empty($rawPayload),
+            'payload_first_100_chars' => substr($rawPayload, 0, 100),
+            'payload_last_100_chars' => strlen($rawPayload) > 100 ? substr($rawPayload, -100) : $rawPayload,
+            'content_length_header' => $request->header('Content-Length'),
+            'content_length_match' => strlen($rawPayload) == (int)$request->header('Content-Length'),
+        ]);
+        
+        if (empty($rawPayload)) {
             Log::warning('WhatsApp webhook: Empty payload for signature verification', [
                 'ip' => $request->ip(),
+                'content_type' => $request->header('Content-Type'),
+                'content_length' => $request->header('Content-Length'),
+                'method' => $request->method(),
+                'url' => $request->fullUrl(),
             ]);
             return false;
         }
-
+        
+        // Additional debug: check if payload looks like valid JSON
+        $jsonCheck = json_decode($rawPayload, true);
+        $isValidJson = json_last_error() === JSON_ERROR_NONE;
+        
+        Log::debug('WhatsApp webhook payload JSON check', [
+            'is_valid_json' => $isValidJson,
+            'json_error' => $isValidJson ? null : json_last_error_msg(),
+            'json_error_code' => $isValidJson ? null : json_last_error(),
+            'json_keys' => $isValidJson && is_array($jsonCheck) ? array_keys($jsonCheck) : null,
+        ]);
+        
+        // Log App Secret info (without exposing the actual secret)
+        Log::debug('WhatsApp webhook App Secret info', [
+            'app_secret_configured' => !empty($appSecret),
+            'app_secret_length' => strlen($appSecret),
+            'app_secret_first_char' => $appSecret ? substr($appSecret, 0, 1) : null,
+            'app_secret_last_char' => $appSecret ? substr($appSecret, -1) : null,
+        ]);
+        
         // Calculate expected signature
         // Meta format: sha256=<hash>
-        $expectedSignature = 'sha256=' . hash_hmac('sha256', $payload, $appSecret);
-
+        // The signature is calculated over the RAW body, exactly as received
+        $expectedSignature = 'sha256=' . hash_hmac('sha256', $rawPayload, $appSecret);
+        
+        Log::debug('WhatsApp webhook signature calculation', [
+            'signature_received_full' => $signature,
+            'signature_expected_full' => $expectedSignature,
+            'signature_received_length' => strlen($signature),
+            'signature_expected_length' => strlen($expectedSignature),
+            'signature_received_starts_with' => substr($signature, 0, 7),
+            'signature_expected_starts_with' => substr($expectedSignature, 0, 7),
+        ]);
+        
         // Use hash_equals to prevent timing attacks
         $isValid = hash_equals($expectedSignature, $signature);
-
+        
         if (!$isValid) {
-            Log::warning('WhatsApp webhook signature validation failed', [
+            // Log detailed information for debugging
+            Log::warning('WhatsApp webhook signature validation failed - DETAILED DEBUG', [
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
-                'signature_received' => substr($signature, 0, 30) . '...',
-                'signature_expected' => substr($expectedSignature, 0, 30) . '...',
-                'payload_length' => strlen($payload),
+                'signature_received' => $signature,
+                'signature_expected' => $expectedSignature,
+                'signature_received_hex' => bin2hex(substr($signature, 7)), // Skip 'sha256=' prefix
+                'signature_expected_hex' => bin2hex(substr($expectedSignature, 7)),
+                'payload_length' => strlen($rawPayload),
+                'payload_hash' => hash('sha256', $rawPayload),
+                'payload_preview_first_200' => substr($rawPayload, 0, 200),
+                'payload_preview_last_200' => strlen($rawPayload) > 200 ? substr($rawPayload, -200) : null,
                 'app_secret_configured' => !empty($appSecret),
                 'app_secret_length' => strlen($appSecret),
+                'content_type' => $request->header('Content-Type'),
+                'content_length_header' => $request->header('Content-Length'),
+                'is_valid_json' => $isValidJson,
+                'json_structure' => $isValidJson && is_array($jsonCheck) ? [
+                    'has_entry' => isset($jsonCheck['entry']),
+                    'entry_count' => isset($jsonCheck['entry']) ? count($jsonCheck['entry']) : 0,
+                    'top_level_keys' => array_keys($jsonCheck),
+                ] : null,
+            ]);
+            
+            // Try to recalculate with different methods to see if there's an encoding issue
+            $payloadUtf8 = mb_convert_encoding($rawPayload, 'UTF-8', 'UTF-8');
+            $expectedSignatureUtf8 = 'sha256=' . hash_hmac('sha256', $payloadUtf8, $appSecret);
+            $payloadTrimmed = trim($rawPayload);
+            $expectedSignatureTrimmed = 'sha256=' . hash_hmac('sha256', $payloadTrimmed, $appSecret);
+            
+            Log::debug('WhatsApp webhook signature alternative calculations', [
+                'utf8_conversion_match' => hash_equals($expectedSignatureUtf8, $signature),
+                'trimmed_match' => hash_equals($expectedSignatureTrimmed, $signature),
+                'payload_has_bom' => substr($rawPayload, 0, 3) === "\xEF\xBB\xBF",
+                'payload_encoding' => mb_detect_encoding($rawPayload, ['UTF-8', 'ASCII', 'ISO-8859-1'], true),
             ]);
         } else {
-            Log::debug('WhatsApp webhook signature validated successfully', [
+            Log::info('WhatsApp webhook signature validated successfully', [
                 'ip' => $request->ip(),
+                'payload_length' => strlen($rawPayload),
+                'is_valid_json' => $isValidJson,
             ]);
         }
 
