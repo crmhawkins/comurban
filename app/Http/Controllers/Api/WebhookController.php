@@ -18,26 +18,63 @@ class WebhookController extends Controller
     public function verify(Request $request)
     {
         // Meta sends parameters as hub.mode, hub.verify_token, hub.challenge
-        // Laravel converts dots to underscores in query parameters
-        $mode = $request->query('hub_mode') ?? $request->query('hub.mode');
-        $token = $request->query('hub_verify_token') ?? $request->query('hub.verify_token');
-        $challenge = $request->query('hub_challenge') ?? $request->query('hub.challenge');
+        // Laravel converts dots to underscores in query parameters, but we need to handle both
+        $mode = $request->input('hub.mode') 
+            ?? $request->query('hub.mode') 
+            ?? $request->input('hub_mode') 
+            ?? $request->query('hub_mode');
+            
+        $token = $request->input('hub.verify_token') 
+            ?? $request->query('hub.verify_token') 
+            ?? $request->input('hub_verify_token') 
+            ?? $request->query('hub_verify_token');
+            
+        $challenge = $request->input('hub.challenge') 
+            ?? $request->query('hub.challenge') 
+            ?? $request->input('hub_challenge') 
+            ?? $request->query('hub_challenge');
+
+        // Also try to get from raw query string
+        if (!$mode || !$token || !$challenge) {
+            parse_str($request->getQueryString() ?? '', $queryParams);
+            $mode = $mode ?? $queryParams['hub.mode'] ?? null;
+            $token = $token ?? $queryParams['hub.verify_token'] ?? null;
+            $challenge = $challenge ?? $queryParams['hub.challenge'] ?? null;
+        }
 
         $verifyToken = ConfigHelper::getWhatsAppConfig('verify_token', config('services.whatsapp.verify_token'));
 
-        if ($mode === 'subscribe' && $token === $verifyToken) {
+        // Log all received parameters for debugging
+        Log::info('Webhook verification attempt', [
+            'mode' => $mode,
+            'token_received' => $token ? substr($token, 0, 10) . '...' : null,
+            'token_expected' => $verifyToken ? substr($verifyToken, 0, 10) . '...' : null,
+            'challenge' => $challenge ? substr($challenge, 0, 20) . '...' : null,
+            'all_query_params' => $request->all(),
+            'raw_query_string' => $request->getQueryString(),
+            'url' => $request->fullUrl(),
+        ]);
+
+        if ($mode === 'subscribe' && $token && $verifyToken && $token === $verifyToken) {
             Log::info('Webhook verified successfully', [
                 'mode' => $mode,
-                'challenge' => $challenge,
+                'challenge_length' => strlen($challenge ?? ''),
             ]);
-            return response($challenge, 200)->header('Content-Type', 'text/plain');
+            return response($challenge, 200)
+                ->header('Content-Type', 'text/plain')
+                ->header('Content-Length', strlen($challenge));
         }
 
         Log::warning('Webhook verification failed', [
             'mode' => $mode,
-            'token_received' => $token,
-            'token_expected' => $verifyToken,
-            'all_query_params' => $request->query(),
+            'mode_match' => $mode === 'subscribe',
+            'token_received' => $token ? substr($token, 0, 10) . '...' : null,
+            'token_expected' => $verifyToken ? substr($verifyToken, 0, 10) . '...' : null,
+            'token_match' => $token === $verifyToken,
+            'token_length_received' => $token ? strlen($token) : 0,
+            'token_length_expected' => $verifyToken ? strlen($verifyToken) : 0,
+            'challenge_present' => !empty($challenge),
+            'all_query_params' => $request->all(),
         ]);
 
         return response('Forbidden', 403);

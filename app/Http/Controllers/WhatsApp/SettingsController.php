@@ -120,27 +120,51 @@ class SettingsController extends Controller
             $testChallenge = 'test_challenge_' . time();
             $testToken = $verifyToken;
 
-            $testUrl = $webhookUrl . '?hub.mode=' . $testMode . '&hub.challenge=' . $testChallenge . '&hub.verify_token=' . $testToken;
+            // Test with hub.mode format (as Meta sends it)
+            $testUrl = $webhookUrl . '?hub.mode=' . urlencode($testMode) . '&hub.challenge=' . urlencode($testChallenge) . '&hub.verify_token=' . urlencode($testToken);
+
+            Log::info('Testing webhook verification', [
+                'url' => $testUrl,
+                'verify_token_length' => strlen($verifyToken),
+            ]);
 
             $ch = curl_init($testUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $error = curl_error($ch);
+            $curlInfo = curl_getinfo($ch);
             curl_close($ch);
+
+            Log::info('Webhook verification test result', [
+                'http_code' => $httpCode,
+                'response' => $response,
+                'expected_challenge' => $testChallenge,
+                'response_matches' => $response === $testChallenge,
+                'error' => $error,
+                'final_url' => $curlInfo['url'] ?? null,
+            ]);
 
             if ($httpCode === 200 && $response === $testChallenge) {
                 return back()->with('success', 'Webhook verificado correctamente. El endpoint responde correctamente.');
             } else {
-                return back()->with('error', 'El webhook no responde correctamente. Verifica que la URL sea accesible desde internet y que el token de verificación coincida.');
+                $errorMessage = 'El webhook no responde correctamente. ';
+                $errorMessage .= "HTTP Code: {$httpCode}. ";
+                $errorMessage .= "Respuesta: " . substr($response, 0, 100) . ". ";
+                if ($error) {
+                    $errorMessage .= "Error cURL: {$error}";
+                }
+                return back()->with('error', $errorMessage);
             }
         } catch (\Exception $e) {
             Log::error('Error re-verifying webhook', [
                 'error' => $e->getMessage(),
                 'webhook_url' => $webhookUrl,
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return back()->with('error', 'Error al verificar webhook: ' . $e->getMessage());
