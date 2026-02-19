@@ -418,6 +418,8 @@ class WhatsAppService
                 'language' => $language,
                 'category' => $category,
                 'waba_id' => $wabaId,
+                'components_count' => count($components),
+                'components' => $components,
             ]);
 
             $response = Http::withToken($this->accessToken)

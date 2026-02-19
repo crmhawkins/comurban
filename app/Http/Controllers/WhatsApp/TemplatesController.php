@@ -98,17 +98,25 @@ class TemplatesController extends Controller
             $header = ['type' => 'HEADER'];
 
             if ($validated['header_type'] === 'text') {
-                $header['format'] = 'TEXT';
-                $header['text'] = $validated['header_text'];
+                // For TEXT header, text field is required
+                if (!empty($validated['header_text'])) {
+                    $header['format'] = 'TEXT';
+                    $header['text'] = $validated['header_text'];
+                    $components[] = $header;
+                }
+                // If header_text is empty, skip adding header component
             } else {
-                $header['format'] = strtoupper($validated['header_type']);
-                // For media headers, example should be an array with header_handle
-                $header['example'] = [
-                    'header_handle' => [$validated['header_media_url']]
-                ];
+                // For media headers (IMAGE, VIDEO, DOCUMENT)
+                if (!empty($validated['header_media_url'])) {
+                    $header['format'] = strtoupper($validated['header_type']);
+                    // For media headers, example should be an array with header_handle
+                    $header['example'] = [
+                        'header_handle' => [$validated['header_media_url']]
+                    ];
+                    $components[] = $header;
+                }
+                // If header_media_url is empty, skip adding header component
             }
-
-            $components[] = $header;
         }
 
         // BODY component (required)
