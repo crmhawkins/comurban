@@ -147,18 +147,28 @@ class TemplatesController extends Controller
             // According to Meta API documentation, when BODY has variables,
             // the example field must be structured as:
             // example: { body_text: [["value1"], ["value2"], ["value3"]] }
-            // Each variable placeholder needs an example value in an array
+            // Each variable placeholder needs an example value wrapped in an array
             
+            // Build example values - each must be an array containing a single string
             $exampleBodyText = [];
             for ($i = 1; $i <= $maxVar; $i++) {
-                // Each example value must be wrapped in an array
+                // Format: [["value1"], ["value2"], ["value3"]]
+                // Each inner array contains one example value for that variable
                 $exampleBodyText[] = ['Ejemplo ' . $i];
             }
             
             // Meta requires example field when variables are present
+            // The example object must have body_text as an array of arrays
             $body['example'] = [
                 'body_text' => $exampleBodyText
             ];
+            
+            // Double-check: ensure example is properly structured
+            if (!isset($body['example']['body_text']) || !is_array($body['example']['body_text'])) {
+                Log::error('BODY example structure is invalid', [
+                    'example' => $body['example'] ?? 'missing',
+                ]);
+            }
             
             // Log the example structure to verify format
             Log::info('BODY example structure', [
@@ -177,7 +187,22 @@ class TemplatesController extends Controller
             'variables_count' => !empty($matches[1]) ? count($matches[1]) : 0,
         ]);
 
+        // Ensure body component is properly structured before adding
+        // Meta requires that if body has variables, example must be present
+        if (isset($body['example']) && !isset($body['example']['body_text'])) {
+            Log::error('BODY component has example but missing body_text', [
+                'body' => $body,
+            ]);
+        }
+        
         $components[] = $body;
+        
+        // Log final components array
+        Log::info('Final components array', [
+            'components_count' => count($components),
+            'components' => $components,
+            'components_json' => json_encode($components, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+        ]);
 
         // FOOTER component (optional)
         if (!empty($validated['footer_text'])) {

@@ -463,9 +463,34 @@ class WhatsAppService
 
             // Use withBody() to ensure proper JSON serialization of nested arrays
             // This ensures the example.body_text array structure is preserved correctly
+            // Also ensure JSON is properly formatted without extra escaping
+            $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            // Verify the JSON structure before sending
+            $decoded = json_decode($jsonPayload, true);
+            if (isset($decoded['components'])) {
+                foreach ($decoded['components'] as $idx => $comp) {
+                    if ($comp['type'] === 'BODY' && isset($comp['example'])) {
+                        Log::info("Component {$idx} BODY example verification", [
+                            'has_example' => isset($comp['example']),
+                            'has_body_text' => isset($comp['example']['body_text']),
+                            'body_text_type' => gettype($comp['example']['body_text'] ?? null),
+                            'body_text_is_array' => is_array($comp['example']['body_text'] ?? null),
+                            'body_text_count' => is_array($comp['example']['body_text'] ?? null) ? count($comp['example']['body_text']) : 0,
+                            'example_structure' => $comp['example'],
+                        ]);
+                    }
+                }
+            }
+            
+            Log::info('Sending JSON payload to Meta', [
+                'json_length' => strlen($jsonPayload),
+                'json_preview' => substr($jsonPayload, 0, 500),
+            ]);
+            
             $response = Http::withToken($this->accessToken)
                 ->withoutVerifying()
-                ->withBody(json_encode($payload, JSON_UNESCAPED_UNICODE), 'application/json')
+                ->withBody($jsonPayload, 'application/json')
                 ->post($url);
 
             $responseData = $response->json();
