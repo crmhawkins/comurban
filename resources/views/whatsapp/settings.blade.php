@@ -213,6 +213,45 @@
                     </div>
                 </div>
 
+                <!-- Configuración de IA -->
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4">Asistente con IA</h4>
+                    <p class="text-sm text-gray-500 mb-4">
+                        Configura el asistente automático con IA que responderá a los mensajes de WhatsApp.
+                    </p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    name="whatsapp_ai_enabled"
+                                    value="1"
+                                    {{ ($settings['ai_enabled'] ?? false) ? 'checked' : '' }}
+                                    class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <span class="text-sm font-medium text-gray-700">Activar asistente con IA</span>
+                            </label>
+                            <p class="text-xs text-gray-500 mt-1 ml-6">
+                                Cuando está activado, la IA responderá automáticamente a los mensajes entrantes.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Prompt del sistema</label>
+                            <textarea
+                                name="whatsapp_ai_prompt"
+                                rows="6"
+                                placeholder="Escribe aquí las instrucciones para la IA. Por ejemplo: 'Eres un asistente virtual de atención al cliente. Responde de forma amable y profesional...'"
+                                class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white resize-none"
+                            >{{ $settings['ai_prompt_full'] ?? '' }}</textarea>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Define cómo debe comportarse la IA al responder. Puedes incluir el tono, estilo, información de la empresa, etc.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mt-6 flex items-center justify-between">
                     <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                         <p class="text-xs text-blue-800">

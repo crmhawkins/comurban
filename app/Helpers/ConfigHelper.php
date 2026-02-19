@@ -30,18 +30,37 @@ class ConfigHelper
     /**
      * Set a WhatsApp configuration value in database
      */
-    public static function setWhatsAppConfig(string $key, string $value): void
+    public static function setWhatsAppConfig(string $key, string|bool $value): void
     {
+        // Convert boolean to string for storage
+        if (is_bool($value)) {
+            $value = $value ? '1' : '0';
+        }
+
         Setting::updateOrCreate(
             ['key' => "whatsapp_{$key}"],
             [
-                'value' => $value,
-                'type' => 'string',
+                'value' => (string) $value,
+                'type' => is_bool($value) ? 'boolean' : 'string',
             ]
         );
 
         // Clear cache
         Cache::forget("whatsapp_config_{$key}");
+    }
+
+    /**
+     * Get a WhatsApp configuration value as boolean
+     */
+    public static function getWhatsAppConfigBool(string $key, bool $default = false): bool
+    {
+        $value = self::getWhatsAppConfig($key);
+
+        if ($value === null) {
+            return $default;
+        }
+
+        return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
     }
 
     /**

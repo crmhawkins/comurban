@@ -76,6 +76,36 @@ class ConversationsController extends Controller
         $conversation = Conversation::with(['contact', 'assignedUser'])
             ->findOrFail($id);
 
+        // Mark all unread inbound messages as read
+        $unreadMessages = $conversation->messages()
+            ->where('direction', 'inbound')
+            ->where('status', '!=', 'read')
+            ->get();
+
+        if ($unreadMessages->count() > 0) {
+            $whatsappService = app(\App\Services\WhatsAppService::class);
+
+            foreach ($unreadMessages as $message) {
+                // Mark as read on WhatsApp API
+                try {
+                    $result = $whatsappService->markMessageAsRead($message->wa_message_id);
+
+                    if ($result && $result['success']) {
+                        $message->update([
+                            'status' => 'read',
+                            'read_at' => now(),
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to mark message as read', [
+                        'message_id' => $message->id,
+                        'wa_message_id' => $message->wa_message_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
         // Mark conversation as read
         $conversation->update([
             'unread_count' => 0,

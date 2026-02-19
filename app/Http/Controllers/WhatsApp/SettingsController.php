@@ -222,26 +222,33 @@ class SettingsController extends Controller
             'whatsapp_base_url' => 'nullable|string',
             'whatsapp_business_id' => 'nullable|string',
             'whatsapp_app_id' => 'nullable|string',
+            'whatsapp_ai_enabled' => 'nullable|boolean',
+            'whatsapp_ai_prompt' => 'nullable|string|max:5000',
         ]);
 
-        $updated = false;
-        foreach ($validated as $key => $value) {
-            if ($value !== null && $value !== '') {
-                $cleanKey = str_replace('whatsapp_', '', $key);
-                \App\Helpers\ConfigHelper::setWhatsAppConfig($cleanKey, $value);
-                $updated = true;
+            $updated = false;
+            foreach ($validated as $key => $value) {
+                // Handle boolean values (they can be 0 or false)
+                if ($key === 'whatsapp_ai_enabled') {
+                    $cleanKey = str_replace('whatsapp_', '', $key);
+                    \App\Helpers\ConfigHelper::setWhatsAppConfig($cleanKey, (bool) $value);
+                    $updated = true;
+                } elseif ($value !== null && $value !== '') {
+                    $cleanKey = str_replace('whatsapp_', '', $key);
+                    \App\Helpers\ConfigHelper::setWhatsAppConfig($cleanKey, $value);
+                    $updated = true;
+                }
             }
-        }
 
-        if ($updated) {
-            // Clear all caches
-            Cache::forget('whatsapp_configs_all');
-            Cache::forget('settings_all');
+            if ($updated) {
+                // Clear all caches
+                Cache::forget('whatsapp_configs_all');
+                Cache::forget('settings_all');
 
-            // Clear individual config caches
-            foreach (['phone_number_id', 'access_token', 'verify_token', 'app_secret', 'api_version', 'base_url', 'business_id', 'app_id'] as $key) {
-                Cache::forget("whatsapp_config_{$key}");
-            }
+                // Clear individual config caches
+                foreach (['phone_number_id', 'access_token', 'verify_token', 'app_secret', 'api_version', 'base_url', 'business_id', 'app_id', 'ai_enabled', 'ai_prompt'] as $key) {
+                    Cache::forget("whatsapp_config_{$key}");
+                }
 
             return back()->with('success', 'Configuración de WhatsApp actualizada correctamente');
         }
@@ -284,11 +291,18 @@ class SettingsController extends Controller
         $settings['base_url'] = $baseUrl;
         $settings['business_id'] = $businessId ? $this->maskSensitiveValue($businessId) : '';
         $settings['business_id_full'] = $businessId;
-        $settings['app_id'] = $appId ? $this->maskSensitiveValue($appId) : '';
-        $settings['app_id_full'] = $appId;
-        $settings['app_id_status'] = $appId ? 'Configurado' : 'No configurado';
+            $settings['app_id'] = $appId ? $this->maskSensitiveValue($appId) : '';
+            $settings['app_id_full'] = $appId;
+            $settings['app_id_status'] = $appId ? 'Configurado' : 'No configurado';
 
-        return $settings;
+            // AI Configuration
+            $aiEnabled = \App\Helpers\ConfigHelper::getWhatsAppConfigBool('ai_enabled', false);
+            $aiPrompt = \App\Helpers\ConfigHelper::getWhatsAppConfig('ai_prompt', '');
+            $settings['ai_enabled'] = $aiEnabled;
+            $settings['ai_prompt'] = $aiPrompt;
+            $settings['ai_prompt_full'] = $aiPrompt;
+
+            return $settings;
     }
 
     /**

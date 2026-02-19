@@ -357,10 +357,25 @@ function startPolling() {
     pollInterval = setInterval(checkNewMessages, 3000);
 }
 
+// Marcar mensajes como leídos al cargar la conversación
+async function markMessagesAsRead() {
+    try {
+        await fetch(`/api/conversations/${conversationId}`, {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('input[name="_token"]').value,
+            },
+        });
+    } catch (error) {
+        console.error('Error marking messages as read:', error);
+    }
+}
+
 // Inicializar
 check24HourWindow();
 startPolling();
 scrollToBottom();
+markMessagesAsRead(); // Marcar mensajes como leídos al cargar
 
 // Limpiar al salir
 window.addEventListener('beforeunload', () => {

@@ -264,21 +264,29 @@ class ProcessWebhookEvent implements ShouldQueue
                 'unread_count' => $conversation->unread_count + 1,
             ]);
 
-            // Mark message as read on WhatsApp
-            try {
-                $whatsappService->markMessageAsRead($messageData['id']);
-            } catch (\Exception $e) {
-                Log::warning('Failed to mark message as read', [
-                    'message_id' => $messageData['id'],
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            // NOTE: Messages are NOT marked as read automatically
+            // They will be marked as read when the user opens the conversation
 
             Log::info('Incoming message processed successfully', [
                 'message_id' => $message->id,
                 'conversation_id' => $conversation->id,
                 'contact_id' => $contact->id,
             ]);
+
+            // Check if AI auto-reply is enabled
+            $aiEnabled = \App\Helpers\ConfigHelper::getWhatsAppConfigBool('ai_enabled', false);
+            if ($aiEnabled && $body) {
+                // Generate AI response asynchronously
+                try {
+                    $this->generateAIResponse($conversation, $message, $whatsappService);
+                } catch (\Exception $e) {
+                    Log::error('Error generating AI response', [
+                        'conversation_id' => $conversation->id,
+                        'message_id' => $message->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         });
     }
 
@@ -324,5 +332,121 @@ class ProcessWebhookEvent implements ShouldQueue
                 ]);
             }
         });
+    }
+
+    /**
+     * Generate AI response and send it automatically
+     */
+    protected function generateAIResponse(Conversation $conversation, Message $incomingMessage, WhatsAppService $whatsappService): void
+    {
+        try {
+            $aiService = new LocalAIService();
+            $contact = $conversation->contact;
+            
+            // Get conversation history (last 10 messages for context)
+            $history = $conversation->messages()
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get()
+                ->reverse()
+                ->map(function ($msg) {
+                    return [
+                        'direction' => $msg->direction,
+                        'body' => $msg->body ?? '',
+                        'text' => $msg->body ?? '',
+                    ];
+                })
+                ->toArray();
+
+            // Get system prompt from configuration
+            $systemPrompt = \App\Helpers\ConfigHelper::getWhatsAppConfig('ai_prompt', '');
+
+            // Generate response
+            $userMessage = $incomingMessage->body ?? '';
+            if (empty($userMessage)) {
+                Log::warning('Cannot generate AI response: message has no body', [
+                    'message_id' => $incomingMessage->id,
+                ]);
+                return;
+            }
+
+            Log::info('Generating AI response', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $incomingMessage->id,
+                'user_message_length' => strlen($userMessage),
+            ]);
+
+            $aiResult = $aiService->generateResponse($userMessage, $history, $systemPrompt);
+
+            if (!$aiResult['success'] || empty($aiResult['response'])) {
+                Log::warning('AI response generation failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $aiResult['error'] ?? 'Unknown error',
+                ]);
+                return;
+            }
+
+            $aiResponse = trim($aiResult['response']);
+            if (empty($aiResponse)) {
+                Log::warning('AI response is empty', [
+                    'conversation_id' => $conversation->id,
+                ]);
+                return;
+            }
+
+            // Create message record
+            $tempWaMessageId = 'pending-' . time() . '-' . uniqid();
+            $outboundMessage = Message::create([
+                'conversation_id' => $conversation->id,
+                'wa_message_id' => $tempWaMessageId,
+                'direction' => 'outbound',
+                'type' => 'text',
+                'body' => $aiResponse,
+                'status' => 'sending',
+                'wa_timestamp' => time(),
+                'metadata' => [
+                    'ai_generated' => true,
+                    'in_response_to' => $incomingMessage->id,
+                ],
+            ]);
+
+            // Prepare payload for sending
+            $payload = [
+                'to' => $contact->wa_id,
+                'type' => 'text',
+                'body' => $aiResponse,
+                'preview_url' => false,
+            ];
+
+            // Send message synchronously
+            try {
+                $job = new SendWhatsAppMessage($outboundMessage, $payload);
+                $job->handle($whatsappService);
+                $outboundMessage->refresh();
+
+                Log::info('AI response sent successfully', [
+                    'conversation_id' => $conversation->id,
+                    'message_id' => $outboundMessage->id,
+                    'response_length' => strlen($aiResponse),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Error sending AI response', [
+                    'conversation_id' => $conversation->id,
+                    'message_id' => $outboundMessage->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Update conversation
+            $conversation->update([
+                'last_message_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in generateAIResponse', [
+                'conversation_id' => $conversation->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 }
