@@ -140,28 +140,45 @@ class TemplatesController extends Controller
         ];
 
         // Extract variables from body text ({{1}}, {{2}}, etc.)
+        // Meta uses {{1}}, {{2}}, etc. for variables in templates
         preg_match_all('/\{\{(\d+)\}\}/', $validated['body_text'], $matches);
+        
         if (!empty($matches[1])) {
             $maxVar = max(array_map('intval', $matches[1]));
             
+            Log::info('Variables detected in BODY', [
+                'matches' => $matches[1],
+                'max_var' => $maxVar,
+                'body_text' => $validated['body_text'],
+            ]);
+            
             // According to Meta API documentation, when BODY has variables,
             // the example field must be structured as:
-            // example: { body_text: [["value1"], ["value2"], ["value3"]] }
-            // Each variable placeholder needs an example value wrapped in an array
+            // example: { body_text: ["value1", "value2", "value3"] }
+            // IMPORTANT: body_text should be a flat array of strings, NOT nested arrays
             
-            // Build example values - each must be an array containing a single string
+            // Build example values as a flat array of strings
             $exampleBodyText = [];
             for ($i = 1; $i <= $maxVar; $i++) {
-                // Format: [["value1"], ["value2"], ["value3"]]
-                // Each inner array contains one example value for that variable
-                $exampleBodyText[] = ['Ejemplo ' . $i];
+                // Format: ["value1", "value2", "value3"] - flat array of strings
+                $exampleBodyText[] = 'Ejemplo ' . $i;
             }
             
             // Meta requires example field when variables are present
-            // The example object must have body_text as an array of arrays
+            // The example object must have body_text as a flat array of strings
             $body['example'] = [
                 'body_text' => $exampleBodyText
             ];
+            
+            Log::info('BODY example format (CORRECTED)', [
+                'format' => 'Flat array of strings',
+                'example' => $body['example'],
+                'example_json' => json_encode($body['example'], JSON_PRETTY_PRINT),
+                'body_text_type' => gettype($body['example']['body_text']),
+                'body_text_is_array' => is_array($body['example']['body_text']),
+                'first_element_type' => isset($body['example']['body_text'][0]) ? gettype($body['example']['body_text'][0]) : 'none',
+                'first_element_value' => isset($body['example']['body_text'][0]) ? $body['example']['body_text'][0] : 'none',
+            ]);
             
             // Double-check: ensure example is properly structured
             if (!isset($body['example']['body_text']) || !is_array($body['example']['body_text'])) {
@@ -177,6 +194,10 @@ class TemplatesController extends Controller
                 'example_body_text_type' => gettype($body['example']['body_text']),
                 'example_body_text_count' => count($body['example']['body_text']),
                 'first_example_type' => isset($body['example']['body_text'][0]) ? gettype($body['example']['body_text'][0]) : 'none',
+            ]);
+        } else {
+            Log::warning('No variables detected in BODY text', [
+                'body_text' => $validated['body_text'],
             ]);
         }
         

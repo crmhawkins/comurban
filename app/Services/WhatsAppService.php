@@ -483,15 +483,33 @@ class WhatsAppService
                 }
             }
             
+            // Log full JSON payload for debugging
+            Log::info('=== FULL JSON PAYLOAD BEING SENT TO META ===', [
+                'url' => $url,
+                'json_length' => strlen($jsonPayload),
+                'json_full' => $jsonPayload,
+                'json_decoded_check' => json_decode($jsonPayload, true),
+            ]);
+            
             Log::info('Sending JSON payload to Meta', [
                 'json_length' => strlen($jsonPayload),
                 'json_preview' => substr($jsonPayload, 0, 500),
             ]);
             
+            // Use asJson() to let Laravel handle JSON serialization
+            // This ensures proper encoding of nested structures
             $response = Http::withToken($this->accessToken)
                 ->withoutVerifying()
-                ->withBody($jsonPayload, 'application/json')
-                ->post($url);
+                ->asJson()
+                ->post($url, $payload);
+            
+            // Log the raw response for debugging
+            Log::info('=== META API RESPONSE ===', [
+                'status_code' => $response->status(),
+                'response_body' => $response->body(),
+                'response_json' => $response->json(),
+                'response_headers' => $response->headers(),
+            ]);
 
             $responseData = $response->json();
 
