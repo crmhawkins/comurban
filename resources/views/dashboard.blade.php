@@ -144,7 +144,9 @@
                     </svg>
                 </div>
             </div>
-            <canvas id="consultasPorDiaChart" class="h-64"></canvas>
+            <div style="height: 300px; position: relative;">
+                <canvas id="consultasPorDiaChart"></canvas>
+            </div>
         </div>
 
         <!-- Gráfico 2: Distribución por canal -->
@@ -158,7 +160,9 @@
                     </svg>
                 </div>
             </div>
-            <canvas id="distribucionCanalChart" class="h-64"></canvas>
+            <div style="height: 300px; position: relative;">
+                <canvas id="distribucionCanalChart"></canvas>
+            </div>
         </div>
     </div>
 
@@ -303,7 +307,7 @@
 <script>
     // Gráfica de consultas por día
     const consultasPorDiaCtx = document.getElementById('consultasPorDiaChart').getContext('2d');
-    new Chart(consultasPorDiaCtx, {
+    const consultasPorDiaChart = new Chart(consultasPorDiaCtx, {
         type: 'line',
         data: {
             labels: {!! json_encode(array_column($consultasPorDia, 'fecha')) !!},
@@ -337,10 +341,21 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
+            layout: {
+                padding: {
+                    top: 10,
+                    bottom: 10
+                }
+            },
             plugins: {
                 legend: {
                     position: 'top',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 10
+                    }
                 },
                 tooltip: {
                     mode: 'index',
@@ -351,16 +366,28 @@
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1
+                        stepSize: 1,
+                        maxTicksLimit: 8
+                    },
+                    grid: {
+                        display: true
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
                     }
                 }
+            },
+            animation: {
+                duration: 750
             }
         }
     });
 
     // Gráfica de distribución por canal
     const distribucionCanalCtx = document.getElementById('distribucionCanalChart').getContext('2d');
-    new Chart(distribucionCanalCtx, {
+    const distribucionCanalChart = new Chart(distribucionCanalCtx, {
         type: 'doughnut',
         data: {
             labels: ['WhatsApp', 'Llamadas'],
@@ -379,10 +406,21 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
+            layout: {
+                padding: {
+                    top: 10,
+                    bottom: 10
+                }
+            },
             plugins: {
                 legend: {
                     position: 'bottom',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15
+                    }
                 },
                 tooltip: {
                     callbacks: {
@@ -398,6 +436,9 @@
                         }
                     }
                 }
+            },
+            animation: {
+                duration: 750
             }
         }
     });
