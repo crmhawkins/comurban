@@ -46,24 +46,82 @@ class ProcessWebhookEvent implements ShouldQueue
                 return;
             }
 
-            foreach ($payload['entry'] as $entry) {
-                foreach ($entry['changes'] as $change) {
+            Log::info('Processing webhook event', [
+                'webhook_event_id' => $this->webhookEvent->id,
+                'has_entry' => isset($payload['entry']),
+                'entry_count' => isset($payload['entry']) ? count($payload['entry']) : 0,
+            ]);
+
+            foreach ($payload['entry'] as $entryIndex => $entry) {
+                Log::debug('Processing entry', [
+                    'entry_index' => $entryIndex,
+                    'entry_id' => $entry['id'] ?? null,
+                    'has_changes' => isset($entry['changes']),
+                    'changes_count' => isset($entry['changes']) ? count($entry['changes']) : 0,
+                ]);
+
+                foreach ($entry['changes'] as $changeIndex => $change) {
                     $value = $change['value'];
                     $field = $change['field'];
+
+                    Log::debug('Processing change', [
+                        'change_index' => $changeIndex,
+                        'field' => $field,
+                        'has_messages' => isset($value['messages']),
+                        'has_statuses' => isset($value['statuses']),
+                        'messages_count' => isset($value['messages']) ? count($value['messages']) : 0,
+                        'statuses_count' => isset($value['statuses']) ? count($value['statuses']) : 0,
+                    ]);
 
                     if ($field === 'messages') {
                         if (isset($value['messages'])) {
                             // Process incoming messages
                             $contacts = $value['contacts'] ?? [];
-                            foreach ($value['messages'] as $messageData) {
-                                $this->processIncomingMessage($messageData, $contacts, $value['metadata'] ?? [], $whatsappService);
+                            Log::info('Processing incoming messages', [
+                                'messages_count' => count($value['messages']),
+                                'contacts_count' => count($contacts),
+                            ]);
+                            
+                            foreach ($value['messages'] as $messageIndex => $messageData) {
+                                Log::debug('Processing message', [
+                                    'message_index' => $messageIndex,
+                                    'message_id' => $messageData['id'] ?? null,
+                                    'from' => $messageData['from'] ?? null,
+                                    'type' => $messageData['type'] ?? null,
+                                ]);
+                                
+                                try {
+                                    $this->processIncomingMessage($messageData, $contacts, $value['metadata'] ?? [], $whatsappService);
+                                    Log::info('Message processed successfully', [
+                                        'message_id' => $messageData['id'] ?? null,
+                                    ]);
+                                } catch (\Exception $e) {
+                                    Log::error('Error processing message', [
+                                        'message_id' => $messageData['id'] ?? null,
+                                        'error' => $e->getMessage(),
+                                        'trace' => $e->getTraceAsString(),
+                                    ]);
+                                    throw $e;
+                                }
                             }
                         } elseif (isset($value['statuses'])) {
                             // Process message status updates
+                            Log::info('Processing message status updates', [
+                                'statuses_count' => count($value['statuses']),
+                            ]);
+                            
                             foreach ($value['statuses'] as $statusData) {
                                 $this->processMessageStatus($statusData);
                             }
+                        } else {
+                            Log::warning('Messages field but no messages or statuses found', [
+                                'value_keys' => array_keys($value),
+                            ]);
                         }
+                    } else {
+                        Log::debug('Skipping non-messages field', [
+                            'field' => $field,
+                        ]);
                     }
                 }
             }

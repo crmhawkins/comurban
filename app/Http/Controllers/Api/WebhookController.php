@@ -137,22 +137,27 @@ class WebhookController extends Controller
                 ]);
             }
 
-            // If queue is sync, process immediately; otherwise dispatch to queue
-            $queueConnection = config('queue.default');
-            if ($queueConnection === 'sync') {
-                // Process immediately (synchronous)
-                try {
-                    $job = new ProcessWebhookEvent($webhookEvent);
-                    $job->handle(app(WhatsAppService::class));
-                } catch (\Exception $e) {
-                    Log::error('Error processing webhook synchronously', [
-                        'webhook_event_id' => $webhookEvent->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            } else {
-                // Dispatch job to queue (asynchronous)
-                ProcessWebhookEvent::dispatch($webhookEvent);
+            // Always process synchronously for WhatsApp webhooks to ensure immediate processing
+            // This avoids needing a queue worker running
+            Log::info('Processing webhook synchronously', [
+                'webhook_event_id' => $webhookEvent->id,
+            ]);
+
+            try {
+                $job = new ProcessWebhookEvent($webhookEvent);
+                $job->handle(app(WhatsAppService::class));
+
+                Log::info('Webhook processed successfully (sync)', [
+                    'webhook_event_id' => $webhookEvent->id,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Error processing webhook synchronously', [
+                    'webhook_event_id' => $webhookEvent->id,
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
 
             return response('OK', 200);
