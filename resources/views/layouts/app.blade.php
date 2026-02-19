@@ -78,6 +78,12 @@
                                         </div>
                                     </div>
                                 </div>
+                                <a href="{{ route('incidents.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all duration-200 flex items-center space-x-2 cursor-pointer {{ request()->routeIs('incidents.*') ? 'text-orange-600 bg-orange-50' : '' }}">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                    </svg>
+                                    <span>Incidencias</span>
+                                </a>
                                 <div class="relative group">
                                     <a href="{{ route('calls.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200 flex items-center space-x-2 cursor-pointer {{ request()->routeIs('calls.*') || request()->routeIs('elevenlabs.*') ? 'text-purple-600 bg-purple-50' : '' }}">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

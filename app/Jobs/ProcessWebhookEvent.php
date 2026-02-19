@@ -4,10 +4,12 @@ namespace App\Jobs;
 
 use App\Models\Contact;
 use App\Models\Conversation;
+use App\Models\Incident;
 use App\Models\Message;
 use App\Models\WebhookEvent;
-use App\Services\WhatsAppService;
+use App\Services\IncidentAnalysisService;
 use App\Services\LocalAIService;
+use App\Services\WhatsAppService;
 use App\Jobs\SendWhatsAppMessage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -275,6 +277,19 @@ class ProcessWebhookEvent implements ShouldQueue
                 'contact_id' => $contact->id,
             ]);
 
+            // Detect incidents in the message (only for text messages)
+            if ($body && $type === 'text') {
+                try {
+                    $this->detectAndCreateIncident($conversation, $message, $contact);
+                } catch (\Exception $e) {
+                    Log::error('Error detecting incident', [
+                        'conversation_id' => $conversation->id,
+                        'message_id' => $message->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             // Check if AI auto-reply is enabled
             $aiEnabled = \App\Helpers\ConfigHelper::getWhatsAppConfigBool('ai_enabled', false);
             if ($aiEnabled && $body) {
@@ -449,6 +464,116 @@ class ProcessWebhookEvent implements ShouldQueue
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+        }
+    }
+
+    /**
+     * Detect and create incident if message contains an incident
+     */
+    protected function detectAndCreateIncident(Conversation $conversation, Message $message, Contact $contact): void
+    {
+        try {
+            $analysisService = new IncidentAnalysisService();
+            
+            // Get conversation history for context (last 10 messages)
+            $history = $conversation->messages()
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get()
+                ->reverse()
+                ->map(function ($msg) {
+                    return [
+                        'role' => $msg->direction === 'inbound' ? 'user' : 'assistant',
+                        'content' => $msg->body ?? '',
+                    ];
+                })
+                ->toArray();
+
+            // Detect if message contains an incident
+            $detectionResult = $analysisService->detectIncident($message->body, $history);
+
+            if (!$detectionResult['is_incident'] || $detectionResult['confidence'] < 0.5) {
+                Log::debug('No incident detected in message', [
+                    'message_id' => $message->id,
+                    'confidence' => $detectionResult['confidence'],
+                ]);
+                return;
+            }
+
+            Log::info('Incident detected in message', [
+                'message_id' => $message->id,
+                'conversation_id' => $conversation->id,
+                'incident_type' => $detectionResult['incident_type'],
+                'confidence' => $detectionResult['confidence'],
+            ]);
+
+            // Check for duplicate incidents (same phone number, similar summary, within last 7 days)
+            $recentIncidents = Incident::where('phone_number', $contact->phone_number ?? $contact->wa_id)
+                ->where('source_type', 'whatsapp')
+                ->where('created_at', '>=', now()->subDays(7))
+                ->get();
+
+            $isDuplicate = false;
+            foreach ($recentIncidents as $existingIncident) {
+                // Check if incident type matches
+                if ($detectionResult['incident_type'] && 
+                    $existingIncident->incident_type === $detectionResult['incident_type']) {
+                    $isDuplicate = true;
+                    Log::info('Duplicate incident detected (same type)', [
+                        'existing_incident_id' => $existingIncident->id,
+                        'incident_type' => $detectionResult['incident_type'],
+                    ]);
+                    break;
+                }
+            }
+
+            if ($isDuplicate) {
+                Log::info('Skipping duplicate incident creation', [
+                    'message_id' => $message->id,
+                    'conversation_id' => $conversation->id,
+                ]);
+                return;
+            }
+
+            // Generate incident summary
+            $incidentSummary = $analysisService->generateIncidentSummary($message->body, $history);
+
+            // Generate conversation summary
+            $conversationSummary = $analysisService->generateConversationSummary($history);
+
+            // Create incident
+            $incident = Incident::create([
+                'source_type' => 'whatsapp',
+                'source_id' => $conversation->id,
+                'conversation_id' => $conversation->id,
+                'contact_id' => $contact->id,
+                'phone_number' => $contact->phone_number ?? $contact->wa_id,
+                'incident_summary' => $incidentSummary,
+                'conversation_summary' => $conversationSummary,
+                'incident_type' => $detectionResult['incident_type'],
+                'confidence' => $detectionResult['confidence'],
+                'status' => 'open',
+                'detection_context' => [
+                    'message_id' => $message->id,
+                    'message_body' => $message->body,
+                    'detection_result' => $detectionResult,
+                ],
+            ]);
+
+            Log::info('Incident created successfully', [
+                'incident_id' => $incident->id,
+                'conversation_id' => $conversation->id,
+                'message_id' => $message->id,
+                'summary' => $incidentSummary,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in detectAndCreateIncident', [
+                'conversation_id' => $conversation->id ?? null,
+                'message_id' => $message->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Don't throw - we don't want to break message processing if incident detection fails
         }
     }
 }

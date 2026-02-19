@@ -71,4 +71,11 @@ Route::middleware('auth')->group(function () {
         Route::put('/profile', [\App\Http\Controllers\UserSettingsController::class, 'updateProfile'])->name('update-profile');
         Route::put('/password', [\App\Http\Controllers\UserSettingsController::class, 'updatePassword'])->name('update-password');
     });
+
+    // Rutas de Incidencias
+    Route::prefix('incidents')->name('incidents.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\IncidentsController::class, 'index'])->name('index');
+        Route::get('/{id}', [\App\Http\Controllers\IncidentsController::class, 'show'])->name('show');
+        Route::post('/{id}/status', [\App\Http\Controllers\IncidentsController::class, 'updateStatus'])->name('update-status');
+    });
 });

@@ -205,6 +205,18 @@ function check24HourWindow() {
         });
 }
 
+// Manejar Enter y Shift+Enter en el textarea
+messageBody.addEventListener('keydown', (e) => {
+    // Si se presiona Enter sin Shift, enviar el mensaje
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); // Prevenir el salto de línea
+        if (!isSending && messageBody.value.trim()) {
+            messageForm.dispatchEvent(new Event('submit'));
+        }
+    }
+    // Si se presiona Shift+Enter, permitir el salto de línea (comportamiento por defecto)
+});
+
 // Enviar mensaje
 messageForm.addEventListener('submit', async (e) => {
     e.preventDefault();

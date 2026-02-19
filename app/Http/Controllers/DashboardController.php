@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Incident;
 use App\Models\Message;
 use App\Models\Call;
 use Carbon\Carbon;
@@ -70,11 +71,15 @@ class DashboardController extends Controller
             'llamadas' => $callsLastMonth,
         ];
 
-        // Incidencias esta semana (llamadas categorizadas como "incidencia" de esta semana)
+        // Incidencias esta semana (llamadas + WhatsApp)
         $startOfWeek = Carbon::now()->startOfWeek();
-        $incidenciasThisWeek = Call::where('category', 'incidencia')
+        $incidenciasCalls = Call::where('category', 'incidencia')
             ->where('created_at', '>=', $startOfWeek)
             ->count();
+        $incidenciasWhatsApp = Incident::where('source_type', 'whatsapp')
+            ->where('created_at', '>=', $startOfWeek)
+            ->count();
+        $incidenciasThisWeek = $incidenciasCalls + $incidenciasWhatsApp;
 
         return view('dashboard', [
             'user' => $user,
