@@ -434,6 +434,14 @@ class WhatsAppService
                 'components' => $components,
             ];
 
+            // Log each component structure for debugging
+            foreach ($components as $index => $component) {
+                Log::info("Component {$index} structure", [
+                    'type' => $component['type'] ?? 'unknown',
+                    'component' => $component,
+                ]);
+            }
+
             Log::info('Creating WhatsApp template in Meta', [
                 'name' => $name,
                 'language' => $language,

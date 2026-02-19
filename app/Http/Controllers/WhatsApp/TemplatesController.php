@@ -94,30 +94,44 @@ class TemplatesController extends Controller
         $components = [];
 
         // HEADER component (optional)
+        // Only add header if header_type is set AND has valid content
+        $hasValidHeader = false;
         if (!empty($validated['header_type'])) {
-            $header = ['type' => 'HEADER'];
-
             if ($validated['header_type'] === 'text') {
                 // For TEXT header, text field is required
-                if (!empty($validated['header_text'])) {
-                    $header['format'] = 'TEXT';
-                    $header['text'] = $validated['header_text'];
-                    $components[] = $header;
-                }
-                // If header_text is empty, skip adding header component
-            } else {
-                // For media headers (IMAGE, VIDEO, DOCUMENT)
-                if (!empty($validated['header_media_url'])) {
-                    $header['format'] = strtoupper($validated['header_type']);
-                    // For media headers, example should be an array with header_handle
-                    $header['example'] = [
-                        'header_handle' => [$validated['header_media_url']]
+                if (!empty($validated['header_text']) && trim($validated['header_text']) !== '') {
+                    $header = [
+                        'type' => 'HEADER',
+                        'format' => 'TEXT',
+                        'text' => trim($validated['header_text']),
                     ];
                     $components[] = $header;
+                    $hasValidHeader = true;
                 }
-                // If header_media_url is empty, skip adding header component
+            } else {
+                // For media headers (IMAGE, VIDEO, DOCUMENT)
+                if (!empty($validated['header_media_url']) && trim($validated['header_media_url']) !== '') {
+                    $header = [
+                        'type' => 'HEADER',
+                        'format' => strtoupper($validated['header_type']),
+                        'example' => [
+                            'header_handle' => [trim($validated['header_media_url'])]
+                        ],
+                    ];
+                    $components[] = $header;
+                    $hasValidHeader = true;
+                }
             }
         }
+
+        // Log header validation for debugging
+        Log::info('Header component validation', [
+            'header_type' => $validated['header_type'] ?? null,
+            'header_text' => $validated['header_text'] ?? null,
+            'header_media_url' => $validated['header_media_url'] ?? null,
+            'has_valid_header' => $hasValidHeader,
+            'header_added' => $hasValidHeader,
+        ]);
 
         // BODY component (required)
         $body = [
