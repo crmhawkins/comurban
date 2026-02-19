@@ -101,6 +101,43 @@ class SettingsController extends Controller
     }
 
     /**
+     * Test App Secret with a sample payload
+     */
+    public function testAppSecret(Request $request)
+    {
+        $appSecret = \App\Helpers\ConfigHelper::getWhatsAppConfig('app_secret', config('services.whatsapp.app_secret'));
+
+        if (!$appSecret) {
+            return back()->with('error', 'App Secret no configurado. Configúralo primero en la sección de configuración.');
+        }
+
+        // Use a sample payload similar to what Meta sends
+        $samplePayload = '{"object":"whatsapp_business_account","entry":[{"id":"test","changes":[{"value":{"messaging_product":"whatsapp"},"field":"messages"}]}]}';
+
+        // Calculate signature
+        $calculatedSignature = 'sha256=' . hash_hmac('sha256', $samplePayload, $appSecret);
+
+        // Get info about the secret
+        $secretInfo = [
+            'length' => strlen($appSecret),
+            'first_char' => substr($appSecret, 0, 1),
+            'last_char' => substr($appSecret, -1),
+            'has_spaces' => strpos($appSecret, ' ') !== false,
+            'has_tabs' => strpos($appSecret, "\t") !== false,
+            'has_newlines' => strpos($appSecret, "\n") !== false || strpos($appSecret, "\r") !== false,
+            'trimmed_length' => strlen(trim($appSecret)),
+            'source' => \App\Helpers\ConfigHelper::getWhatsAppConfig('app_secret') ? 'database' : (config('services.whatsapp.app_secret') ? 'config' : 'none'),
+        ];
+
+        return back()->with('app_secret_test', [
+            'sample_payload' => $samplePayload,
+            'calculated_signature' => $calculatedSignature,
+            'secret_info' => $secretInfo,
+            'message' => 'App Secret configurado. Verifica que este App Secret coincida exactamente con el de Meta Developer Console.',
+        ]);
+    }
+
+    /**
      * Re-verify webhook
      */
     public function reVerifyWebhook(Request $request)

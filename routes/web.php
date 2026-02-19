@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'update']);
             Route::post('/settings/webhook/reverify', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'reVerifyWebhook'])->name('settings.webhook.reverify');
             Route::post('/settings/webhook/subscribe', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'subscribeWebhooks'])->name('settings.webhook.subscribe');
+            Route::post('/settings/app-secret/test', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'testAppSecret'])->name('settings.app-secret.test');
 
         // Prueba de conexión
         Route::get('/test-connection', [\App\Http\Controllers\WhatsApp\TestConnectionController::class, 'index'])->name('test-connection');

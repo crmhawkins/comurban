@@ -265,10 +265,39 @@
                             Suscribirse a Webhooks
                         </button>
                     </form>
+                    <form method="POST" action="{{ route('whatsapp.settings.app-secret.test') }}" class="inline">
+                        @csrf
+                        <button
+                            type="submit"
+                            class="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium cursor-pointer"
+                        >
+                            Verificar App Secret
+                        </button>
+                    </form>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">
                     Configura esta URL en Meta Developer Console como webhook URL. Usa "Suscribirse a Webhooks" para suscribirte automáticamente a todos los campos activos.
                 </p>
+
+                @if(session('app_secret_test'))
+                    @php $test = session('app_secret_test'); @endphp
+                    <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h5 class="text-sm font-semibold text-blue-900 mb-2">Información del App Secret</h5>
+                        <div class="text-xs text-blue-800 space-y-1">
+                            <p><strong>Longitud:</strong> {{ $test['secret_info']['length'] }} caracteres</p>
+                            <p><strong>Primer carácter:</strong> {{ $test['secret_info']['first_char'] }}</p>
+                            <p><strong>Último carácter:</strong> {{ $test['secret_info']['last_char'] }}</p>
+                            <p><strong>Origen:</strong> {{ $test['secret_info']['source'] === 'database' ? 'Base de datos' : ($test['secret_info']['source'] === 'config' ? 'Config (.env)' : 'No configurado') }}</p>
+                            @if($test['secret_info']['has_spaces'] || $test['secret_info']['has_tabs'] || $test['secret_info']['has_newlines'])
+                                <p class="text-red-600 font-semibold">⚠️ ADVERTENCIA: El App Secret contiene espacios, tabs o saltos de línea. Esto puede causar problemas.</p>
+                            @endif
+                            @if($test['secret_info']['length'] !== $test['secret_info']['trimmed_length'])
+                                <p class="text-yellow-600 font-semibold">⚠️ El App Secret tiene espacios al inicio o final. Longitud original: {{ $test['secret_info']['length'] }}, longitud sin espacios: {{ $test['secret_info']['trimmed_length'] }}</p>
+                            @endif
+                            <p class="mt-2 text-blue-700"><strong>Nota:</strong> Verifica que este App Secret coincida EXACTAMENTE con el de Meta Developer Console (Settings → Basic → App Secret).</p>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
         @endif
