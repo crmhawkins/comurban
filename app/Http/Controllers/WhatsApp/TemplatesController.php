@@ -145,15 +145,25 @@ class TemplatesController extends Controller
             $maxVar = max(array_map('intval', $matches[1]));
             // Format according to Meta API: example.body_text is an array of arrays
             // Each variable needs an example value wrapped in an array
-            // Example format: [["value1"], ["value2"], ["value3"]]
+            // IMPORTANT: According to Meta docs, format should be:
+            // example: { body_text: [["value1"], ["value2"], ["value3"]] }
             $exampleValues = [];
             for ($i = 1; $i <= $maxVar; $i++) {
+                // Each variable example must be an array containing a single string
                 $exampleValues[] = ['Ejemplo ' . $i];
             }
             // Meta requires example field when variables are present
+            // The example must be an object with body_text as an array of arrays
+            // Format: { "example": { "body_text": [["value1"], ["value2"]] } }
             $body['example'] = [
                 'body_text' => $exampleValues
             ];
+            
+            // Log the example structure to verify format
+            Log::info('BODY example structure', [
+                'example' => $body['example'],
+                'example_json' => json_encode($body['example'], JSON_PRETTY_PRINT),
+            ]);
         }
         
         // Log the body component for debugging

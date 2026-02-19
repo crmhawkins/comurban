@@ -442,6 +442,16 @@ class WhatsAppService
                 ]);
             }
 
+            // Log the exact payload being sent (as JSON to see serialization)
+            Log::info('Creating WhatsApp template in Meta - Payload JSON', [
+                'name' => $name,
+                'language' => $language,
+                'category' => $category,
+                'waba_id' => $wabaId,
+                'components_count' => count($components),
+                'payload_json' => json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+            ]);
+
             Log::info('Creating WhatsApp template in Meta', [
                 'name' => $name,
                 'language' => $language,
