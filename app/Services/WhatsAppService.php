@@ -406,6 +406,27 @@ class WhatsAppService
 
             $url = "{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/message_templates";
 
+            // Validate components structure before sending
+            foreach ($components as $index => $component) {
+                if ($component['type'] === 'BODY' && isset($component['text'])) {
+                    // Check if body has variables
+                    preg_match_all('/\{\{(\d+)\}\}/', $component['text'], $matches);
+                    if (!empty($matches[1])) {
+                        // Has variables - example is required
+                        if (!isset($component['example']) || !isset($component['example']['body_text'])) {
+                            Log::error('BODY component missing example field', [
+                                'component_index' => $index,
+                                'component' => $component,
+                            ]);
+                            return [
+                                'success' => false,
+                                'error' => 'El componente BODY con variables requiere el campo "example" con valores de ejemplo.',
+                            ];
+                        }
+                    }
+                }
+            }
+
             $payload = [
                 'name' => $name,
                 'language' => $language,

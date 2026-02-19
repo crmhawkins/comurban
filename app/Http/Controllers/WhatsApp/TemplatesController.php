@@ -129,16 +129,25 @@ class TemplatesController extends Controller
         preg_match_all('/\{\{(\d+)\}\}/', $validated['body_text'], $matches);
         if (!empty($matches[1])) {
             $maxVar = max(array_map('intval', $matches[1]));
-            // Format: example.body_text is an array of arrays (one per variable)
-            // Each variable needs an example value
+            // Format according to Meta API: example.body_text is an array of arrays
+            // Each variable needs an example value wrapped in an array
+            // Example format: [["value1"], ["value2"], ["value3"]]
             $exampleValues = [];
             for ($i = 1; $i <= $maxVar; $i++) {
                 $exampleValues[] = ['Ejemplo ' . $i];
             }
+            // Meta requires example field when variables are present
             $body['example'] = [
                 'body_text' => $exampleValues
             ];
         }
+        
+        // Log the body component for debugging
+        Log::info('BODY component structure', [
+            'body' => $body,
+            'has_variables' => !empty($matches[1]),
+            'variables_count' => !empty($matches[1]) ? count($matches[1]) : 0,
+        ]);
 
         $components[] = $body;
 
