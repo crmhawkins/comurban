@@ -198,6 +198,19 @@
                             class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono bg-white"
                         />
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">App ID *</label>
+                        <input
+                            type="text"
+                            name="whatsapp_app_id"
+                            value="{{ $settings['app_id_full'] ?? '' }}"
+                            placeholder="Ej: 123456789012345"
+                            class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono bg-white"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Estado: {{ $settings['app_id_status'] ?? 'No configurado' }}</p>
+                        <p class="text-xs text-gray-400 mt-1">ID de la aplicación de Meta (necesario para suscribirse a webhooks)</p>
+                    </div>
                 </div>
 
                 <div class="mt-6 flex items-center justify-between">
@@ -242,9 +255,19 @@
                             Re-verificar
                         </button>
                     </form>
+                    <form method="POST" action="{{ route('whatsapp.settings.webhook.subscribe') }}" class="inline" onsubmit="return confirm('¿Estás seguro de que quieres suscribirte a todos los webhooks activos? Esto actualizará la configuración en Meta.');">
+                        @csrf
+                        <input type="hidden" name="callback_url" value="{{ url('/api/webhook/handle') }}">
+                        <button
+                            type="submit"
+                            class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium cursor-pointer"
+                        >
+                            Suscribirse a Webhooks
+                        </button>
+                    </form>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">
-                    Configura esta URL en Meta Developer Console como webhook URL
+                    Configura esta URL en Meta Developer Console como webhook URL. Usa "Suscribirse a Webhooks" para suscribirte automáticamente a todos los campos activos.
                 </p>
             </div>
         </div>

@@ -32,10 +32,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/templates', [\App\Http\Controllers\WhatsApp\TemplatesController::class, 'store'])->name('templates.store');
         Route::post('/templates/sync', [\App\Http\Controllers\WhatsApp\TemplatesController::class, 'sync'])->name('templates.sync');
 
-        // Configuración
-        Route::get('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'index'])->name('settings');
-        Route::post('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'update']);
-        Route::post('/settings/webhook/reverify', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'reVerifyWebhook'])->name('settings.webhook.reverify');
+            // Configuración
+            Route::get('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'index'])->name('settings');
+            Route::post('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'update']);
+            Route::post('/settings/webhook/reverify', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'reVerifyWebhook'])->name('settings.webhook.reverify');
+            Route::post('/settings/webhook/subscribe', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'subscribeWebhooks'])->name('settings.webhook.subscribe');
 
         // Prueba de conexión
         Route::get('/test-connection', [\App\Http\Controllers\WhatsApp\TestConnectionController::class, 'index'])->name('test-connection');

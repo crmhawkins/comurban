@@ -238,6 +238,120 @@ class WhatsAppService
     }
 
     /**
+     * Subscribe to webhook fields
+     *
+     * @param string $appId The Meta App ID
+     * @param array $fields Array of webhook fields to subscribe to
+     * @param string $callbackUrl The webhook callback URL
+     * @param string $verifyToken The verify token
+     * @return array
+     */
+    public function subscribeToWebhooks(string $appId, array $fields, string $callbackUrl, string $verifyToken): array
+    {
+        try {
+            $url = "{$this->baseUrl}/{$this->apiVersion}/{$appId}/subscriptions";
+
+            $payload = [
+                'object' => 'whatsapp_business_account',
+                'callback_url' => $callbackUrl,
+                'fields' => $fields,
+                'verify_token' => $verifyToken,
+            ];
+
+            Log::info('Subscribing to WhatsApp webhooks', [
+                'app_id' => $appId,
+                'fields' => $fields,
+                'callback_url' => $callbackUrl,
+            ]);
+
+            $response = Http::withToken($this->accessToken)
+                ->withoutVerifying()
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($url, $payload);
+
+            $responseData = $response->json();
+
+            if ($response->successful()) {
+                Log::info('Successfully subscribed to WhatsApp webhooks', [
+                    'app_id' => $appId,
+                    'fields' => $fields,
+                ]);
+
+                return [
+                    'success' => true,
+                    'data' => $responseData,
+                ];
+            }
+
+            Log::error('Failed to subscribe to WhatsApp webhooks', [
+                'app_id' => $appId,
+                'error' => $responseData['error'] ?? 'Unknown error',
+                'status' => $response->status(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $responseData['error'] ?? 'Unknown error',
+                'status' => $response->status(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error subscribing to WhatsApp webhooks', [
+                'app_id' => $appId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get current webhook subscriptions
+     *
+     * @param string $appId The Meta App ID
+     * @return array
+     */
+    public function getWebhookSubscriptions(string $appId): array
+    {
+        try {
+            $url = "{$this->baseUrl}/{$this->apiVersion}/{$appId}/subscriptions";
+
+            $response = Http::withToken($this->accessToken)
+                ->withoutVerifying()
+                ->get($url);
+
+            $responseData = $response->json();
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $responseData,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => $responseData['error'] ?? 'Unknown error',
+                'status' => $response->status(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error getting webhook subscriptions', [
+                'app_id' => $appId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Make HTTP request to WhatsApp API
      */
     protected function makeRequest(string $url, array $payload): array

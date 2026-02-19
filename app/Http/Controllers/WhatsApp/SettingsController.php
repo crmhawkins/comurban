@@ -32,6 +32,75 @@ class SettingsController extends Controller
 
 
     /**
+     * Subscribe to webhook fields
+     */
+    public function subscribeWebhooks(Request $request)
+    {
+        $appId = \App\Helpers\ConfigHelper::getWhatsAppConfig('app_id', config('services.whatsapp.app_id'));
+        $accessToken = \App\Helpers\ConfigHelper::getWhatsAppConfig('access_token', config('services.whatsapp.access_token'));
+        $verifyToken = \App\Helpers\ConfigHelper::getWhatsAppConfig('verify_token', config('services.whatsapp.verify_token'));
+        $callbackUrl = $request->input('callback_url', url('/api/webhook/handle'));
+
+        if (!$appId || !$accessToken || !$verifyToken) {
+            return back()->with('error', 'Configuración incompleta. Necesitas App ID, Access Token y Verify Token.');
+        }
+
+        // Get webhook fields from request or use all active fields
+        $fields = $request->input('fields', [
+            // Campos activos según la configuración del usuario
+            'account_alerts',                    // v24.0 - Suscrito
+            'account_review_update',             // v25.0
+            'account_settings_update',           // v25.0
+            'account_update',                    // v25.0
+            'automatic_events',                  // v25.0
+            'business_capability_update',        // v25.0
+            'business_status_update',            // v25.0
+            'calls',                             // v25.0
+            'flows',                             // v25.0
+            'group_lifecycle_update',            // v25.0
+            'group_participants_update',         // v25.0
+            'group_settings_update',             // v25.0
+            'group_status_update',               // v25.0
+            'history',                           // v24.0 - Suscrito
+            'message_echoes',                    // v25.0
+            'message_template_components_update', // v24.0 - Suscrito
+            'message_template_quality_update',   // v24.0 - Suscrito
+            'message_template_status_update',    // v24.0 - Suscrito
+            'messages',                          // v24.0 - Suscrito
+            'messaging_handovers',               // v25.0
+            'partner_solutions',                 // v25.0
+            'payment_configuration_update',      // v25.0
+            'phone_number_name_update',          // v24.0 - Suscrito
+            'phone_number_quality_update',       // v24.0 - Suscrito
+            'security',                          // v25.0
+            'smb_app_state_sync',                // v25.0
+            'smb_message_echoes',                 // v25.0
+            'template_category_update',          // v24.0 - Suscrito
+            'template_correct_category_detection', // v24.0 - Suscrito
+            'tracking_events',                   // v25.0
+            'user_preferences',                  // v24.0 - Suscrito
+        ]);
+
+        try {
+            $whatsappService = new \App\Services\WhatsAppService();
+            $result = $whatsappService->subscribeToWebhooks($appId, $fields, $callbackUrl, $verifyToken);
+
+            if ($result['success']) {
+                return back()->with('success', 'Suscripción a webhooks realizada correctamente.');
+            } else {
+                $errorMessage = $result['error']['message'] ?? $result['error'] ?? 'Error desconocido';
+                return back()->with('error', 'Error al suscribirse a webhooks: ' . $errorMessage);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error subscribing to webhooks', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Error al suscribirse a webhooks: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Re-verify webhook
      */
     public function reVerifyWebhook(Request $request)
@@ -91,6 +160,7 @@ class SettingsController extends Controller
             'whatsapp_api_version' => 'nullable|string',
             'whatsapp_base_url' => 'nullable|string',
             'whatsapp_business_id' => 'nullable|string',
+            'whatsapp_app_id' => 'nullable|string',
         ]);
 
         $updated = false;
@@ -108,7 +178,7 @@ class SettingsController extends Controller
             Cache::forget('settings_all');
 
             // Clear individual config caches
-            foreach (['phone_number_id', 'access_token', 'verify_token', 'app_secret', 'api_version', 'base_url', 'business_id'] as $key) {
+            foreach (['phone_number_id', 'access_token', 'verify_token', 'app_secret', 'api_version', 'base_url', 'business_id', 'app_id'] as $key) {
                 Cache::forget("whatsapp_config_{$key}");
             }
 
@@ -135,6 +205,7 @@ class SettingsController extends Controller
         $apiVersion = \App\Helpers\ConfigHelper::getWhatsAppConfig('api_version', config('services.whatsapp.api_version', 'v18.0'));
         $baseUrl = \App\Helpers\ConfigHelper::getWhatsAppConfig('base_url', config('services.whatsapp.base_url', 'https://graph.facebook.com'));
         $businessId = \App\Helpers\ConfigHelper::getWhatsAppConfig('business_id', config('services.whatsapp.business_id'));
+        $appId = \App\Helpers\ConfigHelper::getWhatsAppConfig('app_id', config('services.whatsapp.app_id'));
 
         $settings['phone_number_id'] = $phoneNumberId ? $this->maskSensitiveValue($phoneNumberId) : '';
         $settings['phone_number_id_full'] = $phoneNumberId;
@@ -152,6 +223,9 @@ class SettingsController extends Controller
         $settings['base_url'] = $baseUrl;
         $settings['business_id'] = $businessId ? $this->maskSensitiveValue($businessId) : '';
         $settings['business_id_full'] = $businessId;
+        $settings['app_id'] = $appId ? $this->maskSensitiveValue($appId) : '';
+        $settings['app_id_full'] = $appId;
+        $settings['app_id_status'] = $appId ? 'Configurado' : 'No configurado';
 
         return $settings;
     }
