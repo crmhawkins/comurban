@@ -12,3 +12,17 @@ Route::prefix('webhook')->group(function () {
     // Webhook de ElevenLabs
     Route::post('/elevenlabs', [\App\Http\Controllers\Api\ElevenLabsWebhookController::class, 'handle']);
 });
+
+// Rutas API protegidas (requieren autenticación web)
+Route::middleware(['web', 'auth'])->group(function () {
+    // Mensajes
+    Route::prefix('messages')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\MessageController::class, 'index']);
+        Route::post('/send', [\App\Http\Controllers\Api\MessageController::class, 'send']);
+    });
+
+    // Conversaciones (para obtener mensajes)
+    Route::prefix('conversations')->group(function () {
+        Route::get('/{id}/messages', [\App\Http\Controllers\Api\ConversationController::class, 'messages']);
+    });
+});
