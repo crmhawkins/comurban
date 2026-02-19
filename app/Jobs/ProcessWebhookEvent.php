@@ -7,6 +7,8 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\WebhookEvent;
 use App\Services\WhatsAppService;
+use App\Services\LocalAIService;
+use App\Jobs\SendWhatsAppMessage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
