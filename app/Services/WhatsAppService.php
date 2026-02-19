@@ -352,6 +352,123 @@ class WhatsAppService
     }
 
     /**
+     * Get WhatsApp Business Account ID (WABA ID)
+     *
+     * @return string|null
+     */
+    public function getWabaId(): ?string
+    {
+        $wabaId = \App\Helpers\ConfigHelper::getWhatsAppConfig('business_id', config('services.whatsapp.business_id'));
+
+        // If not configured, try to get it from phone number
+        if (!$wabaId && $this->phoneNumberId) {
+            $phoneNumberUrl = "{$this->baseUrl}/{$this->apiVersion}/{$this->phoneNumberId}?fields=whatsapp_business_account";
+
+            try {
+                $phoneResponse = Http::withToken($this->accessToken)
+                    ->withoutVerifying()
+                    ->get($phoneNumberUrl);
+
+                if ($phoneResponse->successful()) {
+                    $phoneData = $phoneResponse->json();
+                    $wabaId = $phoneData['whatsapp_business_account']['id'] ?? null;
+                }
+            } catch (\Exception $e) {
+                Log::error('Error getting WABA ID from phone number', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $wabaId;
+    }
+
+    /**
+     * Create a message template in Meta
+     *
+     * @param string $name Template name
+     * @param string $language Language code (e.g., 'es', 'en')
+     * @param string $category Template category (MARKETING, UTILITY, AUTHENTICATION)
+     * @param array $components Template components array
+     * @return array
+     */
+    public function createTemplate(string $name, string $language, string $category, array $components): array
+    {
+        try {
+            $wabaId = $this->getWabaId();
+
+            if (!$wabaId) {
+                return [
+                    'success' => false,
+                    'error' => 'WhatsApp Business Account ID (WABA ID) no está configurado. Configura WHATSAPP_BUSINESS_ID o verifica que el Phone Number ID sea correcto.',
+                ];
+            }
+
+            $url = "{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/message_templates";
+
+            $payload = [
+                'name' => $name,
+                'language' => $language,
+                'category' => $category,
+                'components' => $components,
+            ];
+
+            Log::info('Creating WhatsApp template in Meta', [
+                'name' => $name,
+                'language' => $language,
+                'category' => $category,
+                'waba_id' => $wabaId,
+            ]);
+
+            $response = Http::withToken($this->accessToken)
+                ->withoutVerifying()
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($url, $payload);
+
+            $responseData = $response->json();
+
+            if ($response->successful()) {
+                Log::info('WhatsApp template created successfully in Meta', [
+                    'name' => $name,
+                    'template_id' => $responseData['id'] ?? null,
+                ]);
+
+                return [
+                    'success' => true,
+                    'data' => $responseData,
+                    'template_id' => $responseData['id'] ?? null,
+                ];
+            }
+
+            $errorMessage = $responseData['error']['message'] ?? ($responseData['error'] ?? 'Unknown error');
+            Log::error('Failed to create WhatsApp template in Meta', [
+                'name' => $name,
+                'error' => $errorMessage,
+                'status' => $response->status(),
+                'response' => $responseData,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $errorMessage,
+                'status' => $response->status(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error creating WhatsApp template in Meta', [
+                'name' => $name,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Make HTTP request to WhatsApp API
      */
     protected function makeRequest(string $url, array $payload): array

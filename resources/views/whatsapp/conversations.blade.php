@@ -96,13 +96,13 @@
                                         </svg>
                                     </div>
                                 </div>
-                                <div class="flex-1 min-w-0">
+                                <div class="flex-1 min-w-0 overflow-hidden">
                                     <div class="flex items-center space-x-2">
                                         <p class="text-sm font-semibold text-gray-900 truncate">
                                             {{ $conversation->contact->name ?? $conversation->contact->phone_number ?? 'Sin nombre' }}
                                         </p>
                                         @if($conversation->unread_count > 0)
-                                            <span class="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded-full">
+                                            <span class="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded-full flex-shrink-0">
                                                 {{ $conversation->unread_count }}
                                             </span>
                                         @endif
@@ -111,7 +111,7 @@
                                         {{ $conversation->contact->phone_number ?? 'Sin teléfono' }}
                                     </p>
                                     @if($conversation->messages->count() > 0)
-                                        <p class="text-sm text-gray-600 truncate mt-1">
+                                        <p class="text-sm text-gray-600 mt-1 truncate max-w-full">
                                             {{ $conversation->messages->first()->body ?? 'Mensaje multimedia' }}
                                         </p>
                                     @endif

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\WhatsApp;
 use App\Http\Controllers\Controller;
 use App\Models\Template;
 use App\Helpers\ConfigHelper;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -101,6 +102,7 @@ class TemplatesController extends Controller
                 $header['text'] = $validated['header_text'];
             } else {
                 $header['format'] = strtoupper($validated['header_type']);
+                // For media headers, example should be an array with header_handle
                 $header['example'] = [
                     'header_handle' => [$validated['header_media_url']]
                 ];
@@ -119,8 +121,14 @@ class TemplatesController extends Controller
         preg_match_all('/\{\{(\d+)\}\}/', $validated['body_text'], $matches);
         if (!empty($matches[1])) {
             $maxVar = max(array_map('intval', $matches[1]));
+            // Format: example.body_text is an array of arrays (one per variable)
+            // Each variable needs an example value
+            $exampleValues = [];
+            for ($i = 1; $i <= $maxVar; $i++) {
+                $exampleValues[] = ['Ejemplo ' . $i];
+            }
             $body['example'] = [
-                'body_text' => array_fill(0, $maxVar, ['Ejemplo ' . ($maxVar > 1 ? 'variable' : '')])
+                'body_text' => $exampleValues
             ];
         }
 
@@ -164,16 +172,48 @@ class TemplatesController extends Controller
             }
         }
 
+        // Create template in Meta first
+        $whatsappService = new WhatsAppService();
+        $metaResult = $whatsappService->createTemplate(
+            $validated['name'],
+            $validated['language'],
+            $validated['category'],
+            $components
+        );
+
+        if (!$metaResult['success']) {
+            Log::error('Failed to create template in Meta', [
+                'name' => $validated['name'],
+                'error' => $metaResult['error'] ?? 'Unknown error',
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Error al crear la plantilla en Meta: ' . ($metaResult['error'] ?? 'Error desconocido'));
+        }
+
+        // Get template ID from Meta response
+        $metaTemplateId = $metaResult['template_id'] ?? $metaResult['data']['id'] ?? null;
+        $metaStatus = $metaResult['data']['status'] ?? 'PENDING';
+
+        // Create template in local database
         $template = Template::create([
             'name' => $validated['name'],
             'language' => $validated['language'],
             'category' => $validated['category'],
-            'status' => 'PENDING',
+            'status' => strtoupper($metaStatus),
             'components' => $components,
+            'meta_template_id' => $metaTemplateId,
+        ]);
+
+        Log::info('Template created successfully', [
+            'template_id' => $template->id,
+            'meta_template_id' => $metaTemplateId,
+            'status' => $template->status,
         ]);
 
         return redirect()->route('whatsapp.templates')
-            ->with('success', 'Plantilla creada correctamente. Está pendiente de aprobación por Meta.');
+            ->with('success', 'Plantilla creada correctamente en Meta. Está pendiente de aprobación.');
     }
 
     /**
