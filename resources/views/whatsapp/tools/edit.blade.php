@@ -625,7 +625,9 @@
                     .replace(/\n/g, '<br>');
 
                 // Resaltar las variables {{1}}, {{2}}, etc. con un color
-                templateText = templateText.replace(/\{\{(\d+)\}\}/g, '<span class="px-1 py-0.5 bg-blue-100 text-blue-800 font-semibold rounded">{{$1}}</span>');
+                templateText = templateText.replace(/\{\{(\d+)\}\}/g, function(match, varNum) {
+                    return '<span class="px-1 py-0.5 bg-blue-100 text-blue-800 font-semibold rounded">' + match + '</span>';
+                });
 
                 html += `
                     <div class="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
