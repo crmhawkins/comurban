@@ -361,6 +361,26 @@
 
             // Si es tipo whatsapp, mostrar selector de templates
             if (selectedType === 'whatsapp') {
+                // Campo to (número de teléfono)
+                const toValue = oldConfig['to'] || '';
+                fieldsHtml += `
+                    <div class="mb-4">
+                        <label for="config_to" class="block text-sm font-medium text-gray-700 mb-2">
+                            Número de teléfono destinatario <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="config_to"
+                            name="config[to]"
+                            value="${toValue.replace(/"/g, '&quot;')}"
+                            required
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="Ej: +34612345678 o 34612345678"
+                        />
+                        <p class="mt-1 text-xs text-gray-500">Número de teléfono al que se enviará el mensaje. Puedes usar variables como @{{phone}} o @{{phone_number}}</p>
+                    </div>
+                `;
+
                 // Campo template_name con selector
                 const templateNameValue = oldConfig['template_name'] || '';
                 const templateId = oldConfig['template_id'] || '';

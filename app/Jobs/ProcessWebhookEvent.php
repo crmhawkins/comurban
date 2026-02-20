@@ -293,6 +293,15 @@ class ProcessWebhookEvent implements ShouldQueue
             // Check if AI auto-reply is enabled
             $aiEnabled = \App\Helpers\ConfigHelper::getWhatsAppConfigBool('ai_enabled', false);
             if ($aiEnabled && $body) {
+                // Check if we've already responded to this message
+                if ($message->ai_responded_at) {
+                    Log::info('Message already has AI response, skipping', [
+                        'message_id' => $message->id,
+                        'ai_responded_at' => $message->ai_responded_at,
+                    ]);
+                    return;
+                }
+                
                 // Generate AI response asynchronously
                 try {
                     $this->generateAIResponse($conversation, $message, $whatsappService);
@@ -531,9 +540,15 @@ class ProcessWebhookEvent implements ShouldQueue
                 $job->handle($whatsappService);
                 $outboundMessage->refresh();
 
+                // Mark the incoming message as responded to
+                $incomingMessage->update([
+                    'ai_responded_at' => now(),
+                ]);
+
                 Log::info('AI response sent successfully', [
                     'conversation_id' => $conversation->id,
                     'message_id' => $outboundMessage->id,
+                    'incoming_message_id' => $incomingMessage->id,
                     'response_length' => strlen($aiResponse),
                 ]);
             } catch (\Exception $e) {

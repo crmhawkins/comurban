@@ -30,6 +30,7 @@ class Message extends Model
         'sent_at',
         'wa_timestamp',
         'metadata',
+        'ai_responded_at',
     ];
 
     protected function casts(): array
@@ -42,6 +43,7 @@ class Message extends Model
             'read_at' => 'datetime',
             'delivered_at' => 'datetime',
             'sent_at' => 'datetime',
+            'ai_responded_at' => 'datetime',
             'metadata' => 'array',
         ];
     }
