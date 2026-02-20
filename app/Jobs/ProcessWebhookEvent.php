@@ -489,6 +489,11 @@ class ProcessWebhookEvent implements ShouldQueue
             }
 
             $aiResponse = trim($aiResult['response']);
+            
+            // Remove any tool usage commands from the response
+            $aiResponse = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $aiResponse);
+            $aiResponse = trim($aiResponse);
+            
             if (empty($aiResponse)) {
                 Log::warning('AI response is empty', [
                     'conversation_id' => $conversation->id,

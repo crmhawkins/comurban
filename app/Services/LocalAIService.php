@@ -105,6 +105,12 @@ class LocalAIService
                     $finalResult = $this->tryModel($finalPrompt, $result['model_used'] ?? $primaryModel, $userMessage, $conversationHistory, $systemPrompt);
 
                     if ($finalResult['success']) {
+                        // Clean the response - remove any tool usage commands
+                        if (isset($finalResult['response'])) {
+                            $finalResult['response'] = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $finalResult['response']);
+                            $finalResult['response'] = trim($finalResult['response']);
+                        }
+                        
                         $finalResult['tool_used'] = $toolUsage['tool_name'];
                         $finalResult['tool_result'] = $toolResult['data'];
                         return $finalResult;
@@ -115,6 +121,18 @@ class LocalAIService
                         'tool_name' => $toolUsage['tool_name'],
                         'error' => $toolResult['error'],
                     ]);
+                    
+                    // Clean the response - remove tool usage command even if tool failed
+                    if (isset($result['response'])) {
+                        $result['response'] = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $result['response']);
+                        $result['response'] = trim($result['response']);
+                    }
+                }
+            } else {
+                // No tool usage detected, but clean response anyway in case AI included it by mistake
+                if (isset($result['response'])) {
+                    $result['response'] = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $result['response']);
+                    $result['response'] = trim($result['response']);
                 }
             }
         }
