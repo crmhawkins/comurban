@@ -34,9 +34,15 @@ class PredefinedToolService
     protected function sendEmail(array $parameters, ?array $config, ?int $emailAccountId = null): array
     {
         try {
-            $to = $parameters['to'] ?? null;
-            $subject = $parameters['subject'] ?? 'Sin asunto';
-            $body = $parameters['body'] ?? '';
+            // Usar valores configurados o parámetros de la IA
+            $to = $this->getConfigValue('to', $config, $parameters);
+            $subject = $this->getConfigValue('subject', $config, $parameters) ?? 'Sin asunto';
+            $body = $this->getConfigValue('body', $config, $parameters) ?? '';
+            
+            // Reemplazar variables en los valores
+            $to = $this->replaceVariables($to, $parameters);
+            $subject = $this->replaceVariables($subject, $parameters);
+            $body = $this->replaceVariables($body, $parameters);
 
             if (!$to) {
                 return [
@@ -126,11 +132,12 @@ class PredefinedToolService
     protected function sendWhatsApp(array $parameters, ?array $config): array
     {
         try {
-            $to = $parameters['to'] ?? null;
-            $templateName = $parameters['template_name'] ?? null;
-            $templateLanguage = $parameters['template_language'] ?? 'es';
-            $templateParameters = $parameters['template_parameters'] ?? [];
-
+            // Usar valores configurados o parámetros de la IA
+            $to = $this->getConfigValue('to', $config, $parameters);
+            $templateName = $this->getConfigValue('template_name', $config, $parameters);
+            $templateLanguage = $this->getConfigValue('template_language', $config, $parameters) ?? 'es';
+            $templateParametersRaw = $this->getConfigValue('template_parameters', $config, $parameters);
+            
             if (!$to) {
                 return [
                     'success' => false,
@@ -201,5 +208,32 @@ class PredefinedToolService
                 'error' => 'Error al enviar el mensaje de WhatsApp: ' . $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Get value from config or parameters
+     */
+    protected function getConfigValue(string $fieldName, ?array $config, array $parameters)
+    {
+        // Si hay un valor configurado en la tool, usarlo
+        if ($config && isset($config[$fieldName]['value'])) {
+            return $config[$fieldName]['value'];
+        }
+        
+        // Si no, usar el parámetro de la IA
+        return $parameters[$fieldName] ?? null;
+    }
+
+    /**
+     * Replace variables in a string
+     */
+    protected function replaceVariables(string $text, array $context): string
+    {
+        foreach ($context as $key => $value) {
+            $text = str_replace("@{{$key}}", $value, $text);
+            $text = str_replace("{{{$key}}}", $value, $text);
+            $text = str_replace("{{$key}}", $value, $text);
+        }
+        return $text;
     }
 }

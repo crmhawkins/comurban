@@ -84,7 +84,7 @@ class ToolsController extends Controller
             $validated['headers'] = null;
         }
 
-        // Para tools predefinidas, obtener la configuración
+        // Para tools predefinidas, obtener la configuración con los valores del formulario
         if ($type === 'predefined') {
             $predefinedTypes = WhatsAppTool::getPredefinedTypes();
             $predefinedType = $validated['predefined_type'];
@@ -93,16 +93,22 @@ class ToolsController extends Controller
                 return back()->withErrors(['predefined_type' => 'Tipo de tool predefinida no válido'])->withInput();
             }
 
-            // Guardar configuración de campos predefinidos
+            // Guardar configuración de campos predefinidos con los valores del formulario
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
+            $configValues = $request->input('config', []);
+            
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
+                    // Guardar el valor del campo del formulario
+                    $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    
                     $config[$fieldName] = [
                         'label' => $fieldConfig['label'],
                         'required' => $fieldConfig['required'] ?? false,
                         'variable' => $fieldConfig['variable'] ?? "{{$fieldName}}",
                         'default' => $fieldConfig['default'] ?? null,
+                        'value' => $fieldValue, // Valor configurado por el usuario
                     ];
                 }
             }
@@ -198,7 +204,7 @@ class ToolsController extends Controller
             $validated['headers'] = null;
         }
 
-        // Para tools predefinidas, obtener la configuración
+        // Para tools predefinidas, obtener la configuración con los valores del formulario
         if ($type === 'predefined') {
             $predefinedTypes = WhatsAppTool::getPredefinedTypes();
             $predefinedType = $validated['predefined_type'];
@@ -207,16 +213,22 @@ class ToolsController extends Controller
                 return back()->withErrors(['predefined_type' => 'Tipo de tool predefinida no válido'])->withInput();
             }
 
-            // Guardar configuración de campos predefinidos
+            // Guardar configuración de campos predefinidos con los valores del formulario
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
+            $configValues = $request->input('config', []);
+            
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
+                    // Guardar el valor del campo del formulario
+                    $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    
                     $config[$fieldName] = [
                         'label' => $fieldConfig['label'],
                         'required' => $fieldConfig['required'] ?? false,
                         'variable' => $fieldConfig['variable'] ?? "{{$fieldName}}",
                         'default' => $fieldConfig['default'] ?? null,
+                        'value' => $fieldValue, // Valor configurado por el usuario
                     ];
                 }
             }

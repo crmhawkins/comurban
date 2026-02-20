@@ -192,6 +192,19 @@
                 </div>
             </div>
 
+            <!-- Campos de Configuración para Tools Predefinidas -->
+            <div class="mb-6" id="predefined-config-container" style="display: none;">
+                <label class="block text-sm font-medium text-gray-700 mb-3">
+                    Configuración de Parámetros
+                </label>
+                <div id="predefined-config-fields" class="space-y-4">
+                    <!-- Los campos se generarán dinámicamente con JavaScript -->
+                </div>
+                <p class="mt-2 text-xs text-gray-500">
+                    Puedes usar variables dinámicas: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
+                </p>
+            </div>
+
             <!-- Cuenta de Correo (solo para tools predefinidas tipo email) -->
             <div class="mb-6" id="email-account-container" style="display: none;">
                 <label for="email_account_id" class="block text-sm font-medium text-gray-700 mb-2">
@@ -293,16 +306,83 @@
             document.getElementById('endpoint').removeAttribute('required');
             document.getElementById('predefined_type').setAttribute('required', 'required');
             updateEmailAccountVisibility();
+            generateConfigFields();
         } else {
             predefinedTypeContainer.style.display = 'none';
             customEndpointContainer.style.display = 'block';
             headersContainer.style.display = 'block';
             emailAccountContainer.style.display = 'none';
+            predefinedConfigContainer.style.display = 'none';
             // Hacer requeridos los campos custom
             document.getElementById('method').setAttribute('required', 'required');
             document.getElementById('endpoint').setAttribute('required', 'required');
             document.getElementById('predefined_type').removeAttribute('required');
             toggleJsonFormat();
+        }
+    }
+
+    // Generar campos de configuración dinámicamente
+    function generateConfigFields() {
+        const selectedType = document.getElementById('predefined_type').value;
+        predefinedConfigFields.innerHTML = '';
+
+        if (selectedType && predefinedTypes[selectedType] && predefinedTypes[selectedType].config_fields) {
+            const tool = predefinedTypes[selectedType];
+            const configFields = tool.config_fields;
+
+            for (const [key, field] of Object.entries(configFields)) {
+                const fieldId = `config_${key}`;
+                // Usar valor guardado o valor por defecto
+                const fieldValue = savedConfig[key]?.value || field.default || '';
+                const isRequired = field.required ? 'required' : '';
+                const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
+
+                let fieldHtml = `
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                            ${field.label} ${requiredStar}
+                        </label>
+                `;
+
+                // Si es template_parameters, usar textarea
+                if (key === 'template_parameters') {
+                    fieldHtml += `
+                        <textarea
+                            id="${fieldId}"
+                            name="config[${key}]"
+                            rows="3"
+                            ${isRequired}
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
+                            placeholder='["parámetro1", "parámetro2"]'
+                        >${fieldValue}</textarea>
+                    `;
+                } else {
+                    fieldHtml += `
+                        <input
+                            type="text"
+                            id="${fieldId}"
+                            name="config[${key}]"
+                            value="${fieldValue}"
+                            ${isRequired}
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="${field.label}"
+                        />
+                    `;
+                }
+
+                fieldHtml += `
+                        <p class="mt-1 text-xs text-gray-500">
+                            Puedes usar variables: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
+                        </p>
+                    </div>
+                `;
+
+                predefinedConfigFields.innerHTML += fieldHtml;
+            }
+
+            predefinedConfigContainer.style.display = 'block';
+        } else {
+            predefinedConfigContainer.style.display = 'none';
         }
     }
 
@@ -349,6 +429,7 @@
     predefinedTypeSelect.addEventListener('change', function() {
         updatePredefinedDescription();
         updateEmailAccountVisibility();
+        generateConfigFields();
     });
     methodSelect.addEventListener('change', toggleJsonFormat);
     
@@ -356,6 +437,7 @@
     toggleType();
     updatePredefinedDescription();
     updateEmailAccountVisibility();
+    generateConfigFields();
     toggleJsonFormat();
 </script>
 @endsection

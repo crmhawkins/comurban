@@ -191,6 +191,19 @@
                 </div>
             </div>
 
+            <!-- Campos de Configuración para Tools Predefinidas -->
+            <div class="mb-6" id="predefined-config-container" style="display: none;">
+                <label class="block text-sm font-medium text-gray-700 mb-3">
+                    Configuración de Parámetros
+                </label>
+                <div id="predefined-config-fields" class="space-y-4">
+                    <!-- Los campos se generarán dinámicamente con JavaScript -->
+                </div>
+                <p class="mt-2 text-xs text-gray-500">
+                    Puedes usar variables dinámicas: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
+                </p>
+            </div>
+
             <!-- Cuenta de Correo (solo para tools predefinidas tipo email) -->
             <div class="mb-6" id="email-account-container" style="display: none;">
                 <label for="email_account_id" class="block text-sm font-medium text-gray-700 mb-2">
@@ -306,6 +319,9 @@
         }
     }
 
+    const predefinedConfigContainer = document.getElementById('predefined-config-container');
+    const predefinedConfigFields = document.getElementById('predefined-config-fields');
+
     // Mostrar/ocultar selector de cuenta de correo según el tipo predefinido
     function updateEmailAccountVisibility() {
         const predefinedType = document.getElementById('predefined_type').value;
@@ -316,19 +332,77 @@
         }
     }
 
+    // Generar campos de configuración dinámicamente
+    function generateConfigFields() {
+        const selectedType = document.getElementById('predefined_type').value;
+        predefinedConfigFields.innerHTML = '';
+
+        if (selectedType && predefinedTypes[selectedType] && predefinedTypes[selectedType].config_fields) {
+            const tool = predefinedTypes[selectedType];
+            const configFields = tool.config_fields;
+            const oldConfig = @json(old('config', []));
+
+            for (const [key, field] of Object.entries(configFields)) {
+                const fieldId = `config_${key}`;
+                const fieldValue = oldConfig[key] || field.default || '';
+                const isRequired = field.required ? 'required' : '';
+                const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
+
+                let fieldHtml = `
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                            ${field.label} ${requiredStar}
+                        </label>
+                `;
+
+                // Si es template_parameters, usar textarea
+                if (key === 'template_parameters') {
+                    fieldHtml += `
+                        <textarea
+                            id="${fieldId}"
+                            name="config[${key}]"
+                            rows="3"
+                            ${isRequired}
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
+                            placeholder='["parámetro1", "parámetro2"]'
+                        >${fieldValue}</textarea>
+                    `;
+                } else {
+                    fieldHtml += `
+                        <input
+                            type="text"
+                            id="${fieldId}"
+                            name="config[${key}]"
+                            value="${fieldValue}"
+                            ${isRequired}
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="${field.label}"
+                        />
+                    `;
+                }
+
+                fieldHtml += `
+                        <p class="mt-1 text-xs text-gray-500">
+                            Puedes usar variables: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
+                        </p>
+                    </div>
+                `;
+
+                predefinedConfigFields.innerHTML += fieldHtml;
+            }
+
+            predefinedConfigContainer.style.display = 'block';
+        } else {
+            predefinedConfigContainer.style.display = 'none';
+        }
+    }
+
     // Mostrar descripción de tool predefinida
     function updatePredefinedDescription() {
         const selectedType = document.getElementById('predefined_type').value;
         if (selectedType && predefinedTypes[selectedType]) {
             const tool = predefinedTypes[selectedType];
             let html = `<strong>${tool.name}</strong><br>${tool.description}`;
-            if (tool.config_fields) {
-                html += '<br><br><strong>Parámetros disponibles:</strong><ul class="mt-2 list-disc list-inside">';
-                for (const [key, field] of Object.entries(tool.config_fields)) {
-                    html += `<li><code>${field.variable}</code> - ${field.label}${field.required ? ' (requerido)' : ''}</li>`;
-                }
-                html += '</ul>';
-            }
             predefinedDescription.innerHTML = html;
             predefinedDescription.style.display = 'block';
         } else {
@@ -349,6 +423,7 @@
     document.getElementById('predefined_type').addEventListener('change', function() {
         updatePredefinedDescription();
         updateEmailAccountVisibility();
+        generateConfigFields();
     });
     methodSelect.addEventListener('change', toggleJsonFormat);
     
@@ -356,6 +431,7 @@
     toggleType();
     updatePredefinedDescription();
     updateEmailAccountVisibility();
+    generateConfigFields();
     toggleJsonFormat();
 </script>
 @endsection
