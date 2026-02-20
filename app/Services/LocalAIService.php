@@ -93,6 +93,12 @@ class LocalAIService
                     $finalPrompt = $prompt . "\n\n";
                     $finalPrompt .= "RESULTADO DE LA HERRAMIENTA '{$toolUsage['tool_name']}':\n";
                     $finalPrompt .= $toolResultText . "\n\n";
+                    $finalPrompt .= "INSTRUCCIONES IMPORTANTES PARA LA RESPUESTA:\n";
+                    $finalPrompt .= "- Si la herramienta era de envío de correo, NUNCA menciones emails, destinatarios o que 'enviaste un correo'.\n";
+                    $finalPrompt .= "- Di 'hemos notificado a nuestro equipo de [mantenimiento/limpieza/etc]' o 'he notificado al equipo correspondiente'.\n";
+                    $finalPrompt .= "- NO digas 'he enviado un correo' o 'hemos enviado un correo'. Siempre di 'hemos notificado'.\n";
+                    $finalPrompt .= "- Mantén un tono natural y profesional, como si fueras un asistente humano.\n";
+                    $finalPrompt .= "- No reveles información técnica sobre el proceso.\n\n";
                     $finalPrompt .= "Ahora genera una respuesta final para el cliente basándote en este resultado. No uses más herramientas, solo responde directamente al cliente.";
 
                     // Generate final response with tool result
@@ -251,6 +257,14 @@ class LocalAIService
             $prompt .= $systemPrompt . "\n\n";
         }
 
+        // Add important instructions about communication
+        $prompt .= "INSTRUCCIONES IMPORTANTES DE COMUNICACIÓN:\n";
+        $prompt .= "- NUNCA menciones direcciones de correo electrónico, nombres de destinatarios o detalles técnicos sobre el envío de correos.\n";
+        $prompt .= "- Cuando uses una herramienta que envía correos, NUNCA digas 'he enviado un correo' o 'hemos enviado un correo'.\n";
+        $prompt .= "- En su lugar, di 'hemos notificado a nuestro equipo de [mantenimiento/limpieza/etc]' o 'he notificado al equipo correspondiente'.\n";
+        $prompt .= "- No reveles información técnica sobre el proceso (emails, destinatarios, etc.).\n";
+        $prompt .= "- Mantén un tono profesional y natural, como si fueras un asistente humano.\n\n";
+
         // Add available tools information
         $tools = WhatsAppTool::active()->ordered()->get();
         if ($tools->count() > 0) {
@@ -260,8 +274,14 @@ class LocalAIService
             $prompt .= "Ejemplo: [USE_TOOL:consultar_pedido:{\"pedido_id\":\"12345\"}]\n\n";
             
             foreach ($tools as $tool) {
-                $prompt .= "- {$tool->name} ({$tool->method} {$tool->endpoint})\n";
+                $prompt .= "- {$tool->name}\n";
                 $prompt .= "  Descripción: {$tool->description}\n";
+                
+                // Si es una tool predefinida de email, añadir instrucción especial
+                if ($tool->type === 'predefined' && $tool->predefined_type === 'email') {
+                    $prompt .= "  IMPORTANTE: Cuando uses esta herramienta, NO menciones que enviaste un correo. Di 'hemos notificado a nuestro equipo' sin dar más detalles.\n";
+                }
+                
                 if ($tool->method === 'POST' && $tool->json_format) {
                     $prompt .= "  Formato esperado: {$tool->json_format}\n";
                 }
@@ -434,15 +454,26 @@ class LocalAIService
 
     /**
      * Replace variables in a string with values from parameters
+     * Supports: {{variable}}, @{{variable}}, {variable}
      */
     protected function replaceVariables(string $text, array $parameters): string
     {
+        if (empty($text) || empty($parameters)) {
+            return $text;
+        }
+
         foreach ($parameters as $key => $value) {
-            // Handle both {{variable}} and @{{variable}} formats
+            if (!is_string($value) && !is_numeric($value)) {
+                $value = (string) $value;
+            }
+            
+            // Replace all possible formats
             $text = str_replace("@{{$key}}", $value, $text);
             $text = str_replace("{{{$key}}}", $value, $text);
             $text = str_replace("{{$key}}", $value, $text);
+            $text = str_replace("{@{$key}}", $value, $text);
         }
+        
         return $text;
     }
 

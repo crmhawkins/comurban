@@ -39,10 +39,16 @@ class PredefinedToolService
             $subject = $this->getConfigValue('subject', $config, $parameters) ?? 'Sin asunto';
             $body = $this->getConfigValue('body', $config, $parameters) ?? '';
             
-            // Reemplazar variables en los valores
-            $to = $this->replaceVariables($to, $parameters);
-            $subject = $this->replaceVariables($subject, $parameters);
-            $body = $this->replaceVariables($body, $parameters);
+            // Reemplazar variables en los valores (soporta @{{variable}} y {{variable}})
+            if ($to) {
+                $to = $this->replaceVariables($to, $parameters);
+            }
+            if ($subject) {
+                $subject = $this->replaceVariables($subject, $parameters);
+            }
+            if ($body) {
+                $body = $this->replaceVariables($body, $parameters);
+            }
 
             if (!$to) {
                 return [
@@ -106,10 +112,9 @@ class PredefinedToolService
             return [
                 'success' => true,
                 'data' => [
-                    'message' => 'Correo enviado correctamente',
-                    'to' => $to,
-                    'subject' => $subject,
-                    'from_account' => $emailAccount?->name ?? 'Cuenta por defecto',
+                    'message' => 'Notificación enviada correctamente',
+                    'status' => 'notificado',
+                    // No incluir información sensible como 'to' o 'from_account'
                 ],
             ];
         } catch (\Exception $e) {
@@ -137,6 +142,17 @@ class PredefinedToolService
             $templateName = $this->getConfigValue('template_name', $config, $parameters);
             $templateLanguage = $this->getConfigValue('template_language', $config, $parameters) ?? 'es';
             $templateParametersRaw = $this->getConfigValue('template_parameters', $config, $parameters);
+            
+            // Reemplazar variables (soporta @{{variable}} y {{variable}})
+            if ($to) {
+                $to = $this->replaceVariables($to, $parameters);
+            }
+            if ($templateName) {
+                $templateName = $this->replaceVariables($templateName, $parameters);
+            }
+            if ($templateLanguage) {
+                $templateLanguage = $this->replaceVariables($templateLanguage, $parameters);
+            }
             
             if (!$to) {
                 return [
@@ -186,9 +202,8 @@ class PredefinedToolService
                     'success' => true,
                     'data' => [
                         'message' => 'Mensaje de WhatsApp enviado correctamente',
-                        'to' => $to,
-                        'template_name' => $templateName,
-                        'message_id' => $result['data']['messages'][0]['id'] ?? null,
+                        'status' => 'enviado',
+                        // No incluir información sensible como 'to'
                     ],
                 ];
             }
@@ -226,14 +241,26 @@ class PredefinedToolService
 
     /**
      * Replace variables in a string
+     * Supports: {{variable}}, @{{variable}}, {variable}
      */
     protected function replaceVariables(string $text, array $context): string
     {
+        if (empty($text) || empty($context)) {
+            return $text;
+        }
+
         foreach ($context as $key => $value) {
+            if (!is_string($value) && !is_numeric($value)) {
+                $value = (string) $value;
+            }
+            
+            // Replace all possible formats
             $text = str_replace("@{{$key}}", $value, $text);
             $text = str_replace("{{{$key}}}", $value, $text);
             $text = str_replace("{{$key}}", $value, $text);
+            $text = str_replace("{@{$key}}", $value, $text);
         }
+        
         return $text;
     }
 }

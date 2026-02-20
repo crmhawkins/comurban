@@ -98,6 +98,14 @@ class SendWhatsAppMessage implements ShouldQueue
                 }
             } else {
                 $error = $result['error'] ?? 'Invalid response from WhatsApp API';
+                
+                // Convert error to string if it's an array
+                if (is_array($error)) {
+                    $errorMessage = $error['message'] ?? $error['error'] ?? json_encode($error);
+                    $errorCode = $error['code'] ?? $error['error_code'] ?? null;
+                    $error = $errorCode ? "[{$errorCode}] {$errorMessage}" : $errorMessage;
+                }
+                
                 throw new \Exception($error);
             }
         } catch (\Exception $e) {

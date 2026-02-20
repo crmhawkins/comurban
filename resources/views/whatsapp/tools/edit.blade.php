@@ -151,7 +151,7 @@
                 @error('json_format')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
-                <p class="mt-1 text-xs text-gray-500">Usa @{{variable}} para que la IA reemplace valores dinámicamente. Variables disponibles: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}</p>
+                <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
             </div>
 
             <!-- Timeout y Order -->
@@ -201,7 +201,7 @@
                     <!-- Los campos se generarán dinámicamente con JavaScript -->
                 </div>
                 <p class="mt-2 text-xs text-gray-500">
-                    Puedes usar variables dinámicas: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
+                    Variables: <code>@{{phone}}</code> (teléfono), <code>@{{name}}</code> (nombre), <code>@{{date}}</code> (fecha), <code>@{{conversation_topic}}</code> (tema), <code>@{{conversation_summary}}</code> (resumen)
                 </p>
             </div>
 
@@ -245,7 +245,7 @@
                 @error('headers')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
-                <p class="mt-1 text-xs text-gray-500">Usa @{{variable}} para valores dinámicos. Variables disponibles: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}</p>
+                <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
             </div>
 
             <!-- Activa -->
