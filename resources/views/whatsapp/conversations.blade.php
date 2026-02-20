@@ -87,8 +87,8 @@
                         href="{{ route('whatsapp.conversations.show', $conversation->id) }}"
                         class="block p-4 hover:bg-gray-50 transition-colors duration-200 cursor-pointer"
                     >
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-4 flex-1">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center space-x-4 flex-1 min-w-0">
                                 <div class="flex-shrink-0">
                                     <div class="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
                                         <svg class="h-6 w-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
@@ -97,8 +97,8 @@
                                     </div>
                                 </div>
                                 <div class="flex-1 min-w-0 overflow-hidden">
-                                    <div class="flex items-center space-x-2">
-                                        <p class="text-sm font-semibold text-gray-900 truncate">
+                                    <div class="flex items-center space-x-2 min-w-0">
+                                        <p class="text-sm font-semibold text-gray-900 truncate min-w-0 flex-1">
                                             {{ $conversation->contact->name ?? $conversation->contact->phone_number ?? 'Sin nombre' }}
                                         </p>
                                         @if($conversation->unread_count > 0)
@@ -107,11 +107,11 @@
                                             </span>
                                         @endif
                                     </div>
-                                    <p class="text-sm text-gray-500 truncate">
+                                    <p class="text-sm text-gray-500 truncate min-w-0">
                                         {{ $conversation->contact->phone_number ?? 'Sin teléfono' }}
                                     </p>
                                     @if($conversation->messages->count() > 0)
-                                        <p class="text-sm text-gray-600 mt-1 truncate max-w-full">
+                                        <p class="text-sm text-gray-600 mt-1 truncate min-w-0">
                                             {{ $conversation->messages->first()->body ?? 'Mensaje multimedia' }}
                                         </p>
                                     @endif
