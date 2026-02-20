@@ -14,12 +14,14 @@ class Conversation extends Model
         'status',
         'last_message_at',
         'unread_count',
+        'conversation_state',
     ];
 
     protected function casts(): array
     {
         return [
             'last_message_at' => 'datetime',
+            'conversation_state' => 'array',
         ];
     }
 

@@ -19,6 +19,7 @@ class WhatsAppTool extends Model
         'timeout',
         'headers',
         'config',
+        'flow_config',
         'email_account_id',
         'active',
         'order',
@@ -27,6 +28,7 @@ class WhatsAppTool extends Model
     protected $casts = [
         'headers' => 'array',
         'config' => 'array',
+        'flow_config' => 'array',
         'active' => 'boolean',
         'timeout' => 'integer',
         'order' => 'integer',

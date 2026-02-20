@@ -481,13 +481,26 @@ class ProcessWebhookEvent implements ShouldQueue
             // Build conversation context for tools
             $conversationContext = $this->buildConversationContext($conversation, $contact, $history);
 
+            // Check if conversation is in a flow
+            $flowService = new \App\Services\FlowService();
+            $isInFlow = $flowService->isInFlow($conversation);
+
+            if ($isInFlow) {
+                // Process flow step
+                $processResult = $this->processFlowStep($conversation, $userMessage, $flowService, $aiService, $history, $systemPrompt, $conversationContext);
+                if ($processResult) {
+                    return; // Flow handled the response
+                }
+            }
+
             Log::info('Generating AI response', [
                 'conversation_id' => $conversation->id,
                 'message_id' => $incomingMessage->id,
                 'user_message_length' => strlen($userMessage),
+                'is_in_flow' => $isInFlow,
             ]);
 
-            $aiResult = $aiService->generateResponse($userMessage, $history, $systemPrompt, $conversationContext);
+            $aiResult = $aiService->generateResponse($userMessage, $history, $systemPrompt, $conversationContext, $conversation);
 
             if (!$aiResult['success'] || empty($aiResult['response'])) {
                 Log::warning('AI response generation failed', [
@@ -731,6 +744,149 @@ class ProcessWebhookEvent implements ShouldQueue
         }
 
         return $context;
+    }
+
+    /**
+     * Process a flow step
+     */
+    protected function processFlowStep($conversation, string $userMessage, $flowService, $aiService, array $history, ?string $systemPrompt, array $conversationContext): bool
+    {
+        try {
+            // Process user response to extract data
+            $processResult = $flowService->processStepResponse($conversation, $userMessage);
+
+            if (!$processResult['success']) {
+                Log::warning('Failed to process flow step response', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $processResult['error'] ?? 'Unknown error',
+                ]);
+                return false;
+            }
+
+            // Check if step is complete
+            if ($processResult['step_complete']) {
+                // Move to next step
+                $nextStep = $flowService->nextStep($conversation);
+
+                if ($nextStep) {
+                    // There's a next step, ask the question
+                    $stepPrompt = $flowService->getCurrentStepPrompt($conversation);
+                    if ($stepPrompt) {
+                        $this->sendFlowMessage($conversation, $stepPrompt);
+                        return true;
+                    }
+                } else {
+                    // Flow completed, execute final tool
+                    $collectedData = $flowService->completeFlow($conversation);
+                    $this->executeFlowTool($conversation, $collectedData, $flowService, $aiService, $history, $systemPrompt, $conversationContext);
+                    return true;
+                }
+            } else {
+                // Step not complete, ask for missing data
+                $currentStep = $flowService->getCurrentStep($conversation);
+                $requiredFields = $currentStep['required_fields'] ?? [];
+                $collectedData = $flowService->getCollectedData($conversation);
+
+                $missingFields = [];
+                foreach ($requiredFields as $field) {
+                    if (!isset($collectedData[$field])) {
+                        $missingFields[] = $field;
+                    }
+                }
+
+                if (!empty($missingFields)) {
+                    $prompt = $currentStep['prompt'] ?? 'Por favor, proporciona la información solicitada.';
+                    $this->sendFlowMessage($conversation, $prompt);
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error processing flow step', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Execute the final tool after flow completion
+     */
+    protected function executeFlowTool($conversation, array $collectedData, $flowService, $aiService, array $history, ?string $systemPrompt, array $conversationContext): void
+    {
+        // Get tool ID from collected data or state before completing
+        $state = $conversation->conversation_state;
+        if (!$state || !isset($state['active_flow'])) {
+            Log::warning('Cannot execute flow tool: no active flow in state', [
+                'conversation_id' => $conversation->id,
+            ]);
+            return;
+        }
+
+        $tool = \App\Models\WhatsAppTool::find($state['active_flow']);
+        if (!$tool) {
+            Log::warning('Cannot execute flow tool: tool not found', [
+                'conversation_id' => $conversation->id,
+                'tool_id' => $state['active_flow'],
+            ]);
+            return;
+        }
+
+        // Merge collected data with conversation context
+        $finalContext = array_merge($conversationContext, $collectedData);
+
+        // Execute the tool
+        $toolResult = $aiService->executeTool($tool->shortcode ?? $tool->name, $collectedData, $finalContext);
+
+        if ($toolResult['success']) {
+            // Generate response based on tool result
+            $response = $aiService->generateResponse(
+                "La herramienta {$tool->name} se ha ejecutado correctamente. Responde al cliente confirmando que se ha procesado su solicitud.",
+                $history,
+                $systemPrompt,
+                $finalContext,
+                $conversation
+            );
+
+            if ($response['success'] && !empty($response['response'])) {
+                $this->sendFlowMessage($conversation, $response['response']);
+            }
+        } else {
+            Log::error('Flow tool execution failed', [
+                'conversation_id' => $conversation->id,
+                'tool_id' => $tool->id,
+                'error' => $toolResult['error'] ?? 'Unknown error',
+            ]);
+        }
+    }
+
+    /**
+     * Send a message during flow
+     */
+    protected function sendFlowMessage($conversation, string $message): void
+    {
+        $whatsappService = new \App\Services\WhatsAppService();
+        $contact = $conversation->contact;
+
+        $result = $whatsappService->sendTextMessage($contact->wa_id ?? $contact->phone_number, $message);
+
+        if ($result['success'] ?? false) {
+            $waMessageId = $result['messages'][0]['id'] ?? null;
+
+            \App\Models\Message::create([
+                'conversation_id' => $conversation->id,
+                'wa_message_id' => $waMessageId,
+                'direction' => 'outbound',
+                'type' => 'text',
+                'body' => $message,
+                'status' => 'sent',
+                'metadata' => ['ai_generated' => true, 'flow_message' => true],
+            ]);
+
+            $conversation->update(['last_message_at' => now()]);
+        }
     }
 
     /**

@@ -248,6 +248,41 @@
                 <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
             </div>
 
+            <!-- Configuración de Flujo -->
+            <div class="mb-6 border-t border-gray-200 pt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Configuración de Flujo</h3>
+                        <p class="text-sm text-gray-600 mt-1">Define pasos interactivos para recopilar información antes de ejecutar la tool</p>
+                    </div>
+                    <label class="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="enable-flow"
+                            class="rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                            {{ old('enable_flow', !empty($tool->flow_config)) ? 'checked' : '' }}
+                        />
+                        <span class="ml-2 text-sm text-gray-700">Habilitar flujo</span>
+                    </label>
+                </div>
+
+                <div id="flow-config-container" style="display: {{ old('enable_flow', !empty($tool->flow_config)) ? 'block' : 'none' }};">
+                    <div id="flow-steps-container" class="space-y-4">
+                        <!-- Los pasos se generarán dinámicamente -->
+                    </div>
+                    <button
+                        type="button"
+                        id="add-flow-step"
+                        class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium"
+                    >
+                        + Agregar Paso
+                    </button>
+                </div>
+
+                <!-- Campo hidden para enviar la configuración del flujo -->
+                <input type="hidden" id="flow_config" name="flow_config" value="{{ old('flow_config', $tool->flow_config ? json_encode($tool->flow_config) : '') }}">
+            </div>
+
             <!-- Activa -->
             <div class="mb-6">
                 <label class="flex items-center">
@@ -440,57 +475,57 @@
                 for (const [key, field] of Object.entries(configFields)) {
                     const fieldId = `config_${key}`;
                     const fieldValue = getConfigValue(key, field.default || '');
-                    const isRequired = field.required ? 'required' : '';
-                    const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
+                const isRequired = field.required ? 'required' : '';
+                const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
 
-                    fieldsHtml += `
-                        <div class="mb-4">
-                            <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
-                                ${field.label} ${requiredStar}
-                            </label>
-                    `;
+                fieldsHtml += `
+                    <div class="mb-4">
+                        <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                            ${field.label} ${requiredStar}
+                        </label>
+                `;
 
                     // Si es body, usar textarea
                     if (key === 'body') {
-                        const textareaValue = fieldValue
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;');
-
-                        fieldsHtml += `
-                            <textarea
-                                id="${fieldId}"
-                                name="config[${key}]"
-                                rows="6"
-                                ${isRequired}
-                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                placeholder="Escribe el cuerpo del mensaje aquí..."
-                            >${textareaValue}</textarea>
-                        `;
-                    } else {
-                        const inputValue = fieldValue
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/"/g, '&quot;');
-
-                        fieldsHtml += `
-                            <input
-                                type="text"
-                                id="${fieldId}"
-                                name="config[${key}]"
-                                value="${inputValue}"
-                                ${isRequired}
-                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                placeholder="${(field.variable || field.label).replace(/"/g, '&quot;')}"
-                            />
-                        `;
-                    }
+                    const textareaValue = fieldValue
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
 
                     fieldsHtml += `
-                            <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
-                        </div>
+                        <textarea
+                            id="${fieldId}"
+                                name="config[${key}]"
+                                rows="6"
+                            ${isRequired}
+                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                placeholder="Escribe el cuerpo del mensaje aquí..."
+                        >${textareaValue}</textarea>
                     `;
+                } else {
+                    const inputValue = fieldValue
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+
+                    fieldsHtml += `
+                        <input
+                            type="text"
+                            id="${fieldId}"
+                                name="config[${key}]"
+                            value="${inputValue}"
+                            ${isRequired}
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="${(field.variable || field.label).replace(/"/g, '&quot;')}"
+                        />
+                    `;
+                }
+
+                fieldsHtml += `
+                        <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
+                    </div>
+                `;
                 }
             }
 
@@ -985,7 +1020,7 @@
 
         // Asegurar que generateConfigFields se ejecute después de que se muestren los contenedores
         setTimeout(() => {
-            generateConfigFields();
+        generateConfigFields();
         }, 100);
 
         toggleJsonFormat();
@@ -997,6 +1032,246 @@
     } else {
         // DOM ya está listo, ejecutar inmediatamente
         initializeForm();
+    }
+
+    // ========== CONFIGURACIÓN DE FLUJOS ==========
+    const enableFlowCheckbox = document.getElementById('enable-flow');
+    const flowConfigContainer = document.getElementById('flow-config-container');
+    const flowStepsContainer = document.getElementById('flow-steps-container');
+    const addFlowStepButton = document.getElementById('add-flow-step');
+    const flowConfigInput = document.getElementById('flow_config');
+
+    // Cargar configuración de flujo existente
+    const savedFlowConfig = @json($tool->flow_config ?? null);
+    let flowSteps = savedFlowConfig?.steps || [];
+
+    // Toggle visibilidad del contenedor de flujo
+    if (enableFlowCheckbox) {
+        enableFlowCheckbox.addEventListener('change', function() {
+            flowConfigContainer.style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) {
+                flowSteps = [];
+                updateFlowConfig();
+            } else if (flowSteps.length === 0) {
+                addFlowStep();
+            }
+        });
+    }
+
+    // Agregar nuevo paso
+    if (addFlowStepButton) {
+        addFlowStepButton.addEventListener('click', addFlowStep);
+    }
+
+    function addFlowStep(stepData = null) {
+        const stepIndex = flowSteps.length;
+        const step = stepData || {
+            prompt: '',
+            required_fields: [],
+            field_mappings: {}
+        };
+
+        const stepElement = document.createElement('div');
+        stepElement.className = 'border border-gray-200 rounded-lg p-4 bg-gray-50';
+        stepElement.dataset.stepIndex = stepIndex;
+
+        stepElement.innerHTML = `
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="font-semibold text-gray-900">Paso ${stepIndex + 1}</h4>
+                <button type="button" class="text-red-600 hover:text-red-800 text-sm font-medium remove-step">
+                    Eliminar
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Pregunta/Prompt <span class="text-red-500">*</span>
+                    </label>
+                    <textarea
+                        class="step-prompt w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        rows="2"
+                        placeholder="Ej: ¿Cuál es tu número de reserva?"
+                    >${step.prompt || ''}</textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Campos Requeridos (separados por comas)
+                    </label>
+                    <input
+                        type="text"
+                        class="step-required-fields w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Ej: reserva_number, nombre, apartamento"
+                        value="${step.required_fields?.join(', ') || ''}"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Los campos que se deben recopilar en este paso</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Mapeo de Campos
+                    </label>
+                    <div class="space-y-2" id="field-mappings-${stepIndex}">
+                        <!-- Los mapeos se generarán dinámicamente -->
+                    </div>
+                    <button
+                        type="button"
+                        class="mt-2 text-sm text-blue-600 hover:text-blue-800 add-field-mapping"
+                        data-step-index="${stepIndex}"
+                    >
+                        + Agregar Mapeo
+                    </button>
+                </div>
+            </div>
+        `;
+
+        flowStepsContainer.appendChild(stepElement);
+
+        // Agregar event listeners
+        stepElement.querySelector('.remove-step').addEventListener('click', function() {
+            stepElement.remove();
+            updateFlowSteps();
+        });
+
+        stepElement.querySelector('.step-prompt').addEventListener('input', updateFlowConfig);
+        stepElement.querySelector('.step-required-fields').addEventListener('input', updateFlowConfig);
+
+        // Agregar mapeos de campos existentes
+        if (step.field_mappings) {
+            Object.keys(step.field_mappings).forEach(field => {
+                addFieldMapping(stepIndex, field, step.field_mappings[field]);
+            });
+        }
+
+        // Agregar listener para botón de agregar mapeo
+        stepElement.querySelector('.add-field-mapping').addEventListener('click', function() {
+            addFieldMapping(stepIndex);
+        });
+
+        flowSteps.push(step);
+        updateFlowConfig();
+    }
+
+    function addFieldMapping(stepIndex, fieldName = '', mappingConfig = {}) {
+        const mappingsContainer = document.getElementById(`field-mappings-${stepIndex}`);
+        const mappingElement = document.createElement('div');
+        mappingElement.className = 'flex items-center space-x-2 p-2 bg-white rounded border border-gray-200';
+
+        mappingElement.innerHTML = `
+            <input
+                type="text"
+                class="mapping-field flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                placeholder="Nombre del campo"
+                value="${fieldName}"
+            />
+            <select class="mapping-type px-2 py-1 border border-gray-300 rounded text-sm">
+                <option value="text" ${mappingConfig.type === 'text' ? 'selected' : ''}>Texto</option>
+                <option value="number" ${mappingConfig.type === 'number' ? 'selected' : ''}>Número</option>
+                <option value="regex" ${mappingConfig.type === 'regex' ? 'selected' : ''}>Regex</option>
+                <option value="keyword" ${mappingConfig.type === 'keyword' ? 'selected' : ''}>Palabra clave</option>
+            </select>
+            <input
+                type="text"
+                class="mapping-pattern px-2 py-1 border border-gray-300 rounded text-sm flex-1"
+                placeholder="Patrón (para regex) o palabras clave (para keyword)"
+                value="${mappingConfig.pattern || mappingConfig.keywords ? JSON.stringify(mappingConfig.pattern || mappingConfig.keywords) : ''}"
+                style="display: ${mappingConfig.type === 'regex' || mappingConfig.type === 'keyword' ? 'block' : 'none'};"
+            />
+            <button type="button" class="text-red-600 hover:text-red-800 text-sm remove-mapping">×</button>
+        `;
+
+        mappingsContainer.appendChild(mappingElement);
+
+        // Event listeners
+        mappingElement.querySelector('.mapping-type').addEventListener('change', function() {
+            const patternInput = mappingElement.querySelector('.mapping-pattern');
+            patternInput.style.display = (this.value === 'regex' || this.value === 'keyword') ? 'block' : 'none';
+            updateFlowConfig();
+        });
+
+        mappingElement.querySelector('.remove-mapping').addEventListener('click', function() {
+            mappingElement.remove();
+            updateFlowConfig();
+        });
+
+        mappingElement.querySelectorAll('input, select').forEach(input => {
+            input.addEventListener('input', updateFlowConfig);
+            input.addEventListener('change', updateFlowConfig);
+        });
+    }
+
+    function updateFlowSteps() {
+        const stepElements = flowStepsContainer.querySelectorAll('[data-step-index]');
+        flowSteps = [];
+        stepElements.forEach((element, index) => {
+            element.dataset.stepIndex = index;
+            element.querySelector('h4').textContent = `Paso ${index + 1}`;
+        });
+        updateFlowConfig();
+    }
+
+    function updateFlowConfig() {
+        if (!enableFlowCheckbox?.checked) {
+            flowConfigInput.value = '';
+            return;
+        }
+
+        const steps = [];
+        const stepElements = flowStepsContainer.querySelectorAll('[data-step-index]');
+
+        stepElements.forEach((stepElement, index) => {
+            const prompt = stepElement.querySelector('.step-prompt').value.trim();
+            const requiredFieldsText = stepElement.querySelector('.step-required-fields').value.trim();
+            const requiredFields = requiredFieldsText ? requiredFieldsText.split(',').map(f => f.trim()).filter(f => f) : [];
+
+            const fieldMappings = {};
+            stepElement.querySelectorAll('.mapping-field').forEach(fieldInput => {
+                const fieldName = fieldInput.value.trim();
+                if (fieldName) {
+                    const mappingRow = fieldInput.closest('.flex');
+                    const mappingType = mappingRow.querySelector('.mapping-type').value;
+                    const patternInput = mappingRow.querySelector('.mapping-pattern');
+
+                    fieldMappings[fieldName] = {
+                        type: mappingType
+                    };
+
+                    if (mappingType === 'regex' && patternInput.value) {
+                        try {
+                            fieldMappings[fieldName].pattern = patternInput.value;
+                        } catch (e) {
+                            console.error('Invalid regex pattern:', e);
+                        }
+                    } else if (mappingType === 'keyword' && patternInput.value) {
+                        try {
+                            const keywords = JSON.parse(patternInput.value);
+                            fieldMappings[fieldName].keywords = keywords;
+                        } catch (e) {
+                            // Si no es JSON válido, crear objeto simple
+                            fieldMappings[fieldName].keywords = { [patternInput.value]: patternInput.value };
+                        }
+                    }
+                }
+            });
+
+            steps.push({
+                prompt: prompt,
+                required_fields: requiredFields,
+                field_mappings: fieldMappings
+            });
+        });
+
+        flowConfigInput.value = JSON.stringify({ steps: steps });
+    }
+
+    // Cargar pasos existentes al inicializar
+    if (savedFlowConfig && savedFlowConfig.steps && savedFlowConfig.steps.length > 0) {
+        savedFlowConfig.steps.forEach(step => {
+            addFlowStep(step);
+        });
+    } else if (enableFlowCheckbox?.checked) {
+        addFlowStep();
     }
 </script>
 @endsection

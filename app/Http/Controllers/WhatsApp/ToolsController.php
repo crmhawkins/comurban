@@ -35,7 +35,7 @@ class ToolsController extends Controller
         $templates = \App\Models\Template::where('status', 'APPROVED')
             ->orderBy('name')
             ->get();
-        
+
         return view('whatsapp.tools.create', [
             'predefinedTypes' => $predefinedTypes,
             'templates' => $templates,
@@ -48,7 +48,7 @@ class ToolsController extends Controller
     public function store(Request $request)
     {
         $type = $request->input('type', 'custom');
-        
+
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
@@ -93,7 +93,7 @@ class ToolsController extends Controller
         if ($type === 'predefined') {
             $predefinedTypes = WhatsAppTool::getPredefinedTypes();
             $predefinedType = $validated['predefined_type'];
-            
+
             if (!isset($predefinedTypes[$predefinedType])) {
                 return back()->withErrors(['predefined_type' => 'Tipo de tool predefinida no válido'])->withInput();
             }
@@ -102,12 +102,12 @@ class ToolsController extends Controller
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
             $configValues = $request->input('config', []);
-            
+
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
                     // Los campos del formulario vienen como config[fieldName] (ej: config[to], config[subject])
                     $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
-                    
+
                     // Para template_parameters, puede venir como JSON string
                     if ($fieldName === 'template_parameters' && is_string($fieldValue)) {
                         $decoded = json_decode($fieldValue, true);
@@ -115,7 +115,7 @@ class ToolsController extends Controller
                             $fieldValue = $decoded;
                         }
                     }
-                    
+
                     $config[$fieldName] = [
                         'label' => $fieldConfig['label'],
                         'required' => $fieldConfig['required'] ?? false,
@@ -125,16 +125,16 @@ class ToolsController extends Controller
                     ];
                 }
             }
-            
+
             // Guardar template_id si existe (para tools de whatsapp)
             if ($predefinedType === 'whatsapp' && isset($configValues['template_id'])) {
                 $config['template_id'] = [
                     'value' => $configValues['template_id'],
                 ];
             }
-            
+
             $validated['config'] = $config;
-            
+
             // Establecer valores por defecto para campos no requeridos en custom
             $validated['method'] = null;
             $validated['endpoint'] = null;
@@ -149,6 +149,19 @@ class ToolsController extends Controller
         $validated['active'] = $request->has('active');
         $validated['timeout'] = $validated['timeout'] ?? 30;
         $validated['order'] = $validated['order'] ?? 0;
+
+        // Procesar configuración de flujo
+        if ($request->has('flow_config') && !empty($request->input('flow_config'))) {
+            $flowConfigJson = $request->input('flow_config');
+            $flowConfig = json_decode($flowConfigJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($flowConfig)) {
+                $validated['flow_config'] = $flowConfig;
+            } else {
+                $validated['flow_config'] = null;
+            }
+        } else {
+            $validated['flow_config'] = null;
+        }
 
         WhatsAppTool::create($validated);
 
@@ -175,38 +188,38 @@ class ToolsController extends Controller
         $templates = \App\Models\Template::where('status', 'APPROVED')
             ->orderBy('name')
             ->get();
-        
+
         return view('whatsapp.tools.edit', [
             'tool' => $tool,
             'predefinedTypes' => $predefinedTypes,
             'templates' => $templates,
         ]);
     }
-    
+
     /**
      * Get template variables (API endpoint)
      */
     public function getTemplateVariables(Request $request)
     {
         $templateId = $request->input('template_id');
-        
+
         if (!$templateId) {
             return response()->json(['error' => 'Template ID requerido'], 400);
         }
-        
+
         // Intentar buscar por ID primero (puede venir como string o int)
         $template = \App\Models\Template::find((int)$templateId);
-        
+
         // Si no se encuentra, intentar buscar por nombre
         if (!$template) {
             $template = \App\Models\Template::where('name', $templateId)->first();
         }
-        
+
         // Si aún no se encuentra, buscar por nombre parcial (por si hay espacios o diferencias)
         if (!$template) {
             $template = \App\Models\Template::where('name', 'like', '%' . $templateId . '%')->first();
         }
-        
+
         if (!$template) {
             \Log::warning('Template not found', [
                 'template_id' => $templateId,
@@ -217,10 +230,10 @@ class ToolsController extends Controller
                 'template_id_requested' => $templateId,
             ], 404);
         }
-        
+
         $variables = [];
         $components = $template->components ?? [];
-        
+
         // Log para debugging
         \Log::info('Extracting template variables', [
             'template_id' => $template->id,
@@ -229,7 +242,7 @@ class ToolsController extends Controller
             'components_type' => gettype($components),
             'components' => $components,
         ]);
-        
+
         // Si components no es un array, intentar decodificarlo
         if (!is_array($components)) {
             if (is_string($components)) {
@@ -239,7 +252,7 @@ class ToolsController extends Controller
                 }
             }
         }
-        
+
         // Extraer variables del BODY
         if (is_array($components)) {
             foreach ($components as $component) {
@@ -247,17 +260,17 @@ class ToolsController extends Controller
                 if (!is_array($component)) {
                     continue;
                 }
-                
+
                 $componentType = $component['type'] ?? null;
                 $componentText = $component['text'] ?? null;
-                
+
                 \Log::debug('Processing component', [
                     'type' => $componentType,
                     'has_text' => isset($component['text']),
                     'text_preview' => $componentText ? substr($componentText, 0, 200) : null,
                     'component_keys' => array_keys($component),
                 ]);
-                
+
                 // Buscar en BODY (puede venir como 'BODY' o 'body')
                 if (strtoupper($componentType) === 'BODY' && $componentText) {
                     // Buscar variables en el formato {{1}}, {{2}}, etc.
@@ -267,7 +280,7 @@ class ToolsController extends Controller
                         '/\{\{\s*(\d+)\s*\}\}/',  // {{1}}, {{ 1 }}
                         '/\{\s*(\d+)\s*\}/',      // {1}, { 1 }
                     ];
-                    
+
                     $allMatches = [];
                     foreach ($patterns as $pattern) {
                         preg_match_all($pattern, $componentText, $matches);
@@ -275,19 +288,19 @@ class ToolsController extends Controller
                             $allMatches = array_merge($allMatches, $matches[1]);
                         }
                     }
-                    
+
                     \Log::debug('BODY text variable search', [
                         'text' => $componentText,
                         'text_length' => strlen($componentText),
                         'all_matches' => $allMatches,
                         'matches_count' => count($allMatches),
                     ]);
-                    
+
                     if (!empty($allMatches)) {
                         // Eliminar duplicados y ordenar
                         $uniqueVars = array_unique(array_map('intval', $allMatches));
                         sort($uniqueVars);
-                        
+
                         foreach ($uniqueVars as $varNum) {
                             $variables[] = [
                                 'index' => (int)$varNum,
@@ -304,19 +317,19 @@ class ToolsController extends Controller
                 'components' => $components,
             ]);
         }
-        
+
         // Si no encontramos variables, intentar buscar directamente en el JSON del template
         if (empty($variables)) {
             \Log::info('No variables found in components, trying direct search in template JSON');
-            
+
             // Convertir todo el template a JSON string y buscar variables
             $templateJson = json_encode($template->toArray());
             preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $templateJson, $matches);
-            
+
             if (!empty($matches[1])) {
                 $uniqueVars = array_unique(array_map('intval', $matches[1]));
                 sort($uniqueVars);
-                
+
                 foreach ($uniqueVars as $varNum) {
                     $variables[] = [
                         'index' => (int)$varNum,
@@ -324,25 +337,25 @@ class ToolsController extends Controller
                         'placeholder' => "{{{$varNum}}}",
                     ];
                 }
-                
+
                 \Log::info('Variables found in template JSON', [
                     'variables' => $variables,
                 ]);
             }
         }
-        
+
         // Ordenar por índice
         usort($variables, function($a, $b) {
             return $a['index'] - $b['index'];
         });
-        
+
         \Log::info('Template variables extracted', [
             'template_id' => $template->id,
             'template_name' => $template->name,
             'variables_count' => count($variables),
             'variables' => $variables,
         ]);
-        
+
         // Extraer el texto completo del template (BODY)
         $templateText = '';
         $components = $template->components ?? [];
@@ -354,7 +367,7 @@ class ToolsController extends Controller
                 }
             }
         }
-        
+
         // Para debugging, incluir información adicional en la respuesta
         $debugInfo = [
             'components_type' => gettype($template->components),
@@ -367,7 +380,7 @@ class ToolsController extends Controller
                 ];
             }, array_slice($template->components ?? [], 0, 3)) : null,
         ];
-        
+
         return response()->json([
             'template' => [
                 'id' => $template->id,
@@ -386,7 +399,7 @@ class ToolsController extends Controller
     public function update(Request $request, WhatsAppTool $tool)
     {
         $type = $request->input('type', $tool->type ?? 'custom');
-        
+
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
@@ -431,7 +444,7 @@ class ToolsController extends Controller
         if ($type === 'predefined') {
             $predefinedTypes = WhatsAppTool::getPredefinedTypes();
             $predefinedType = $validated['predefined_type'];
-            
+
             if (!isset($predefinedTypes[$predefinedType])) {
                 return back()->withErrors(['predefined_type' => 'Tipo de tool predefinida no válido'])->withInput();
             }
@@ -440,12 +453,12 @@ class ToolsController extends Controller
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
             $configValues = $request->input('config', []);
-            
+
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
                     // Los campos del formulario vienen como config[fieldName] (ej: config[to], config[subject])
                     $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
-                    
+
                     // Para template_parameters, puede venir como JSON string
                     if ($fieldName === 'template_parameters' && is_string($fieldValue)) {
                         $decoded = json_decode($fieldValue, true);
@@ -453,7 +466,7 @@ class ToolsController extends Controller
                             $fieldValue = $decoded;
                         }
                     }
-                    
+
                     $config[$fieldName] = [
                         'label' => $fieldConfig['label'],
                         'required' => $fieldConfig['required'] ?? false,
@@ -463,16 +476,16 @@ class ToolsController extends Controller
                     ];
                 }
             }
-            
+
             // Guardar template_id si existe (para tools de whatsapp)
             if ($predefinedType === 'whatsapp' && isset($configValues['template_id'])) {
                 $config['template_id'] = [
                     'value' => $configValues['template_id'],
                 ];
             }
-            
+
             $validated['config'] = $config;
-            
+
             // Establecer valores por defecto para campos no requeridos en custom
             $validated['method'] = null;
             $validated['endpoint'] = null;
@@ -487,6 +500,19 @@ class ToolsController extends Controller
         $validated['active'] = $request->has('active');
         $validated['timeout'] = $validated['timeout'] ?? 30;
         $validated['order'] = $validated['order'] ?? 0;
+
+        // Procesar configuración de flujo
+        if ($request->has('flow_config') && !empty($request->input('flow_config'))) {
+            $flowConfigJson = $request->input('flow_config');
+            $flowConfig = json_decode($flowConfigJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($flowConfig)) {
+                $validated['flow_config'] = $flowConfig;
+            } else {
+                $validated['flow_config'] = null;
+            }
+        } else {
+            $validated['flow_config'] = null;
+        }
 
         $tool->update($validated);
 

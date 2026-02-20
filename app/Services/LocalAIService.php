@@ -32,7 +32,7 @@ class LocalAIService
      * @param array|null $conversationContext Optional context with: phone, name, date, conversation_topic, conversation_summary
      * @return array
      */
-    public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null, ?array $conversationContext = null): array
+    public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null, ?array $conversationContext = null, $conversation = null): array
     {
         if (!$this->url || !$this->apiKey) {
             return [
@@ -292,7 +292,14 @@ class LocalAIService
 
         // Add incident information if available in context
         if ($conversationContext && isset($conversationContext['incident_id'])) {
-            $prompt .= "INFORMACIÓN DE INCIDENCIA DETECTADA:\n";
+            Log::info('Incident context found in conversation', [
+                'incident_id' => $conversationContext['incident_id'] ?? null,
+                'incident_type' => $conversationContext['incident_type'] ?? null,
+                'summary' => $conversationContext['summary'] ?? null,
+                'all_context_keys' => array_keys($conversationContext),
+            ]);
+
+            $prompt .= "🚨 INFORMACIÓN DE INCIDENCIA DETECTADA:\n";
             $prompt .= "Se ha detectado una incidencia en esta conversación:\n";
             if (isset($conversationContext['incident_type'])) {
                 $prompt .= "- Tipo de incidencia: {$conversationContext['incident_type']}\n";
@@ -304,6 +311,16 @@ class LocalAIService
                 $prompt .= "- ID de incidencia: {$conversationContext['incident_id']}\n";
             }
             $prompt .= "\n";
+            $prompt .= "⚠️ ACCIÓN REQUERIDA: DEBES usar la herramienta de notificación de incidencias ANTES de responder al cliente.\n";
+            $prompt .= "NO respondas directamente sin usar la herramienta. La herramienta enviará la notificación automáticamente.\n";
+            $prompt .= "Después de usar la herramienta, puedes responder al cliente confirmando que has notificado al equipo.\n";
+            $prompt .= "Formato: [USE_TOOL:incidencia_de_mantenimiento:{}]\n\n";
+        } else {
+            Log::debug('No incident context found', [
+                'has_conversation_context' => !is_null($conversationContext),
+                'has_incident_id' => isset($conversationContext['incident_id']),
+                'context_keys' => $conversationContext ? array_keys($conversationContext) : [],
+            ]);
         }
 
         // Add available tools information (completely dynamic based on active tools)
@@ -339,8 +356,11 @@ class LocalAIService
             $prompt .= "INSTRUCCIONES GENERALES:\n";
             $prompt .= "- Usa el SHORTCODE (no el nombre completo) cuando invoques una herramienta.\n";
             $prompt .= "- Lee la descripción de cada herramienta para saber cuándo usarla.\n";
+            $prompt .= "- Si hay una incidencia detectada (ver sección anterior), DEBES usar la herramienta de notificación ANTES de responder.\n";
             $prompt .= "- Si usas una herramienta de notificación (email, WhatsApp, etc.), NO menciones el método técnico. Di 'hemos notificado a nuestro equipo' o similar.\n";
-            $prompt .= "- Las herramientas se ejecutan automáticamente. Después de ejecutarlas, responde al cliente de forma natural.\n\n";
+            $prompt .= "- Las herramientas se ejecutan automáticamente. Después de ejecutarlas, responde al cliente de forma natural.\n";
+            $prompt .= "- El formato para usar una herramienta es: [USE_TOOL:shortcode:parametros_json]\n";
+            $prompt .= "- Ejemplo: [USE_TOOL:incidencia_de_mantenimiento:{}]\n\n";
         }
 
         // Log tools being passed to AI
