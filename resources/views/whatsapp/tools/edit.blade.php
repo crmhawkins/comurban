@@ -352,11 +352,40 @@
                 
                 // Obtener valor: primero old input, luego saved config, luego default
                 let fieldValue = '';
+                
+                // 1. Intentar desde old input (valores del formulario anterior si hubo error)
                 if (oldConfigValues && oldConfigValues[key] !== undefined) {
-                    fieldValue = oldConfigValues[key];
-                } else if (savedConfig && savedConfig[key] && savedConfig[key].value !== undefined) {
-                    fieldValue = savedConfig[key].value;
-                } else {
+                    // Si viene de old input, puede ser directamente el valor o un objeto con value
+                    if (typeof oldConfigValues[key] === 'object' && oldConfigValues[key] !== null && oldConfigValues[key].value !== undefined) {
+                        fieldValue = oldConfigValues[key].value;
+                    } else {
+                        fieldValue = oldConfigValues[key];
+                    }
+                } 
+                // 2. Intentar desde savedConfig (valores guardados en la base de datos)
+                else if (savedConfig && savedConfig[key]) {
+                    // Si savedConfig[key] es un objeto con 'value', usar ese valor
+                    if (typeof savedConfig[key] === 'object' && savedConfig[key] !== null) {
+                        if (savedConfig[key].value !== undefined) {
+                            fieldValue = savedConfig[key].value;
+                        } else {
+                            // Si no tiene 'value', puede que el valor esté directamente en el objeto
+                            // Intentar encontrar cualquier propiedad que no sea metadata
+                            const metadataKeys = ['label', 'required', 'variable', 'default'];
+                            for (const prop in savedConfig[key]) {
+                                if (!metadataKeys.includes(prop)) {
+                                    fieldValue = savedConfig[key][prop];
+                                    break;
+                                }
+                            }
+                        }
+                    } else if (typeof savedConfig[key] === 'string' || typeof savedConfig[key] === 'number') {
+                        // Si es directamente un string o número, usarlo
+                        fieldValue = savedConfig[key];
+                    }
+                } 
+                // 3. Usar default del campo
+                else {
                     fieldValue = field.default || '';
                 }
                 
@@ -369,8 +398,8 @@
                     // Si falla, usar el valor como string
                 }
                 
-                // Convertir a string
-                fieldValue = String(fieldValue || '');
+                // Convertir a string y limpiar
+                fieldValue = String(fieldValue || '').trim();
                 
                 const isRequired = field.required ? 'required' : '';
                 const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
@@ -397,7 +426,7 @@
                     fieldsHtml += `
                         <textarea
                             id="${fieldId}"
-                            name="config_${key}"
+                            name="config[${key}]"
                             rows="${rows}"
                             ${isRequired}
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 ${fontClass}"
@@ -416,7 +445,7 @@
                         <input
                             type="text"
                             id="${fieldId}"
-                            name="config_${key}"
+                            name="config[${key}]"
                             value="${inputValue}"
                             ${isRequired}
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -492,10 +521,21 @@
     
     // Función de inicialización
     function initializeForm() {
+        console.log('Initializing form...', {
+            toolType: typeSelect?.value,
+            predefinedType: predefinedTypeSelect?.value,
+            savedConfig: savedConfig
+        });
+        
         toggleType();
         updatePredefinedDescription();
         updateEmailAccountVisibility();
-        generateConfigFields();
+        
+        // Asegurar que generateConfigFields se ejecute después de que se muestren los contenedores
+        setTimeout(() => {
+            generateConfigFields();
+        }, 100);
+        
         toggleJsonFormat();
     }
     

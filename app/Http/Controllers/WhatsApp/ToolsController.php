@@ -96,12 +96,17 @@ class ToolsController extends Controller
             // Guardar configuración de campos predefinidos con los valores del formulario
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
-            $configValues = $request->input('config', []);
             
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
-                    // Guardar el valor del campo del formulario
-                    $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    // Los campos del formulario vienen como config_fieldName (ej: config_to, config_subject)
+                    $fieldValue = $request->input("config_{$fieldName}", '');
+                    
+                    // Si está vacío, intentar desde el array config (para compatibilidad)
+                    if (empty($fieldValue)) {
+                        $configValues = $request->input('config', []);
+                        $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    }
                     
                     $config[$fieldName] = [
                         'label' => $fieldConfig['label'],
@@ -216,12 +221,17 @@ class ToolsController extends Controller
             // Guardar configuración de campos predefinidos con los valores del formulario
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
-            $configValues = $request->input('config', []);
             
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
-                    // Guardar el valor del campo del formulario
-                    $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    // Los campos del formulario vienen como config_fieldName (ej: config_to, config_subject)
+                    $fieldValue = $request->input("config_{$fieldName}", '');
+                    
+                    // Si está vacío, intentar desde el array config (para compatibilidad)
+                    if (empty($fieldValue)) {
+                        $configValues = $request->input('config', []);
+                        $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    }
                     
                     $config[$fieldName] = [
                         'label' => $fieldConfig['label'],
