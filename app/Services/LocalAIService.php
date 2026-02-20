@@ -290,7 +290,7 @@ class LocalAIService
         $prompt .= "- No reveles información técnica sobre el proceso (emails, destinatarios, etc.).\n";
         $prompt .= "- Mantén un tono profesional y natural, como si fueras un asistente humano.\n\n";
 
-        // Add incident information if available in context
+        // Add incident information if available in context (informational only)
         if ($conversationContext && isset($conversationContext['incident_id'])) {
             Log::info('Incident context found in conversation', [
                 'incident_id' => $conversationContext['incident_id'] ?? null,
@@ -299,7 +299,7 @@ class LocalAIService
                 'all_context_keys' => array_keys($conversationContext),
             ]);
 
-            $prompt .= "🚨 INFORMACIÓN DE INCIDENCIA DETECTADA:\n";
+            $prompt .= "INFORMACIÓN DE INCIDENCIA DETECTADA:\n";
             $prompt .= "Se ha detectado una incidencia en esta conversación:\n";
             if (isset($conversationContext['incident_type'])) {
                 $prompt .= "- Tipo de incidencia: {$conversationContext['incident_type']}\n";
@@ -311,16 +311,6 @@ class LocalAIService
                 $prompt .= "- ID de incidencia: {$conversationContext['incident_id']}\n";
             }
             $prompt .= "\n";
-            $prompt .= "⚠️ ACCIÓN REQUERIDA: DEBES usar la herramienta de notificación de incidencias ANTES de responder al cliente.\n";
-            $prompt .= "NO respondas directamente sin usar la herramienta. La herramienta enviará la notificación automáticamente.\n";
-            $prompt .= "Después de usar la herramienta, puedes responder al cliente confirmando que has notificado al equipo.\n";
-            $prompt .= "Formato: [USE_TOOL:incidencia_de_mantenimiento:{}]\n\n";
-        } else {
-            Log::debug('No incident context found', [
-                'has_conversation_context' => !is_null($conversationContext),
-                'has_incident_id' => isset($conversationContext['incident_id']),
-                'context_keys' => $conversationContext ? array_keys($conversationContext) : [],
-            ]);
         }
 
         // Add available tools information (completely dynamic based on active tools)

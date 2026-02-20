@@ -18,12 +18,14 @@ class Call extends Model
         'duration',
         'recording_url',
         'summary',
+        'call_state',
     ];
 
     protected function casts(): array
     {
         return [
             'metadata' => 'array',
+            'call_state' => 'array',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
             'duration' => 'integer',

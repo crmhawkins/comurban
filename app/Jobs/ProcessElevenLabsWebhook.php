@@ -237,6 +237,19 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                         ]);
                     }
                 }
+
+                // Process tools for all completed calls with transcript
+                // The AI will decide if it needs to use any tools based on the conversation
+                if ($status === 'completed' && $transcript) {
+                    try {
+                        $this->processCallTools($call, $transcript, $phoneNumber, $category);
+                    } catch (\Exception $e) {
+                        Log::error('Error processing tools for call', [
+                            'call_id' => $call->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
             });
         } catch (\Exception $e) {
             Log::error('ElevenLabs webhook: error al procesar', [
@@ -380,7 +393,8 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 'summary' => $incidentSummary,
             ]);
 
-            // No enviar notificación automática - solo cuando la IA use una tool explícitamente
+            // Tools are now processed for all calls in processCallTools method
+            // This ensures the AI receives the full transcript and all available tools
         } catch (\Exception $e) {
             Log::error('Error in detectAndCreateIncidentFromCall', [
                 'call_id' => $call->id ?? null,
@@ -389,6 +403,140 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 'trace' => $e->getTraceAsString(),
             ]);
             // Don't throw - we don't want to break call processing if incident creation fails
+        }
+    }
+
+    /**
+     * Process tools for calls
+     * The AI receives the full transcript and all available tools, and decides if it needs to use any
+     */
+    protected function processCallTools(Call $call, string $transcript, ?string $phoneNumber, string $category): void
+    {
+        try {
+            // Get or create contact
+            $contact = null;
+            if ($phoneNumber) {
+                $contact = Contact::firstOrCreate(
+                    ['phone_number' => $phoneNumber],
+                    [
+                        'wa_id' => $phoneNumber,
+                        'name' => $phoneNumber,
+                    ]
+                );
+            }
+
+            // Build context similar to WhatsApp conversations
+            $context = [
+                'phone' => $phoneNumber,
+                'phone_number' => $phoneNumber,
+                'name' => $contact?->name ?? $phoneNumber,
+                'contact_name' => $contact?->name ?? $phoneNumber,
+                'date' => now()->format('Y-m-d H:i:s'),
+                'conversation_topic' => $category ?? 'Llamada',
+                'conversation_summary' => $call->summary ?? '',
+                'call_id' => (string)$call->id,
+                'transcript' => $transcript,
+            ];
+
+            // Add incident information if available
+            $recentIncident = Incident::where('call_id', $call->id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($recentIncident) {
+                $context['incident_id'] = (string)$recentIncident->id;
+                $context['incident_type'] = $recentIncident->incident_type ?? '';
+                $context['summary'] = $recentIncident->incident_summary ?? '';
+            }
+
+            // Get active tools
+            $tools = \App\Models\WhatsAppTool::active()->ordered()->get();
+
+            if ($tools->isEmpty()) {
+                Log::debug('No active tools available for call', [
+                    'call_id' => $call->id,
+                ]);
+                return;
+            }
+
+            // Use AI service to process the call transcript
+            // The AI will receive the full transcript and all available tools
+            $aiService = new \App\Services\LocalAIService();
+
+            // Build conversation history from transcript
+            $history = [];
+            $transcriptLines = explode("\n", $transcript);
+            foreach ($transcriptLines as $line) {
+                if (preg_match('/^\[([^\]]+)\]:\s*(.+)$/', $line, $matches)) {
+                    $role = strtolower($matches[1]);
+                    $content = $matches[2];
+                    if ($role === 'usuario' || $role === 'user') {
+                        $history[] = ['direction' => 'inbound', 'body' => $content, 'text' => $content];
+                    } elseif ($role === 'agente' || $role === 'agent') {
+                        $history[] = ['direction' => 'outbound', 'body' => $content, 'text' => $content];
+                    }
+                }
+            }
+
+            // Get system prompt from configuration
+            $systemPrompt = \App\Helpers\ConfigHelper::getWhatsAppConfig('ai_prompt', '');
+
+            // Generate AI response with full transcript and all tools
+            // The AI will decide if it needs to use any tools based on the conversation
+            $userMessage = "Revisa la conversación de esta llamada telefónica y determina si necesitas usar alguna herramienta para ayudar al cliente o procesar su solicitud.";
+
+            Log::info('Processing call with tools', [
+                'call_id' => $call->id,
+                'transcript_length' => strlen($transcript),
+                'tools_count' => $tools->count(),
+                'has_incident' => $recentIncident !== null,
+            ]);
+
+            $aiResult = $aiService->generateResponse(
+                $userMessage,
+                $history,
+                $systemPrompt,
+                $context
+            );
+
+            if ($aiResult['success'] && isset($aiResult['response'])) {
+                // Check if AI wants to use a tool
+                $toolUsage = $aiService->detectToolUsage($aiResult['response']);
+
+                if ($toolUsage) {
+                    Log::info('Tool usage detected for call', [
+                        'call_id' => $call->id,
+                        'tool_name' => $toolUsage['tool_name'],
+                        'parameters' => $toolUsage['parameters'],
+                    ]);
+
+                    // Execute the tool
+                    $toolResult = $aiService->executeTool($toolUsage['tool_name'], $toolUsage['parameters'], $context);
+
+                    if ($toolResult['success']) {
+                        Log::info('Tool executed successfully for call', [
+                            'call_id' => $call->id,
+                            'tool_name' => $toolUsage['tool_name'],
+                        ]);
+                    } else {
+                        Log::warning('Tool execution failed for call', [
+                            'call_id' => $call->id,
+                            'tool_name' => $toolUsage['tool_name'],
+                            'error' => $toolResult['error'] ?? 'Unknown error',
+                        ]);
+                    }
+                } else {
+                    Log::debug('No tool usage detected for call', [
+                        'call_id' => $call->id,
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error processing tools for call', [
+                'call_id' => $call->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - we don't want to break call processing if tool execution fails
         }
     }
 
