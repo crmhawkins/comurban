@@ -146,7 +146,7 @@
                     name="json_format"
                     rows="6"
                     class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
-                    placeholder='{"pedido_id": "{{pedido_id}}", "telefono": "{{telefono}}"}'
+                    placeholder='{"pedido_id": "@{{pedido_id}}", "telefono": "@{{phone}}"}'
                 >{{ old('json_format', $tool->json_format) }}</textarea>
                 @error('json_format')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -227,7 +227,7 @@
                     name="headers"
                     rows="4"
                     class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
-                    placeholder='{"Authorization": "Bearer {{token}}", "Content-Type": "application/json"}'
+                    placeholder='{"Authorization": "Bearer @{{token}}", "Content-Type": "application/json"}'
                 >{{ old('headers', $tool->headers ? json_encode($tool->headers, JSON_PRETTY_PRINT) : '') }}</textarea>
                 @error('headers')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
