@@ -15,32 +15,20 @@ return new class extends Migration
             // Añadir type si no existe
             if (!Schema::hasColumn('whatsapp_tools', 'type')) {
                 $table->enum('type', ['custom', 'predefined'])->default('custom')->after('description')->comment('Tipo de tool: custom o predefined');
+                // Solo crear índice si acabamos de crear la columna
+                $table->index('type');
             }
             
             // Añadir predefined_type si no existe
             if (!Schema::hasColumn('whatsapp_tools', 'predefined_type')) {
                 $table->string('predefined_type', 50)->nullable()->after('type')->comment('Tipo de tool predefinida: email, whatsapp, etc.');
+                // Solo crear índice si acabamos de crear la columna
+                $table->index('predefined_type');
             }
             
             // Añadir config si no existe
             if (!Schema::hasColumn('whatsapp_tools', 'config')) {
                 $table->json('config')->nullable()->after('headers')->comment('Configuración adicional para tools predefinidas');
-            }
-            
-            // Añadir índices si las columnas existen
-            if (Schema::hasColumn('whatsapp_tools', 'type')) {
-                try {
-                    $table->index('type');
-                } catch (\Exception $e) {
-                    // El índice ya existe, ignorar
-                }
-            }
-            if (Schema::hasColumn('whatsapp_tools', 'predefined_type')) {
-                try {
-                    $table->index('predefined_type');
-                } catch (\Exception $e) {
-                    // El índice ya existe, ignorar
-                }
             }
         });
     }

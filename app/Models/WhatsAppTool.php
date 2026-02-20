@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class WhatsAppTool extends Model
 {
+    protected $table = 'whatsapp_tools';
+
     protected $fillable = [
         'name',
         'description',
