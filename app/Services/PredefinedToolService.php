@@ -12,14 +12,23 @@ class PredefinedToolService
 {
     /**
      * Execute a predefined tool
+     * @param string $predefinedType
+     * @param array $parameters
+     * @param array|null $config
+     * @param int|null $emailAccountId
+     * @param array|null $conversationContext Optional context with: phone, name, date, conversation_topic, conversation_summary
+     * @return array
      */
-    public function execute(string $predefinedType, array $parameters, ?array $config = null, ?int $emailAccountId = null): array
+    public function execute(string $predefinedType, array $parameters, ?array $config = null, ?int $emailAccountId = null, ?array $conversationContext = null): array
     {
+        // Merge conversation context with parameters for variable replacement
+        $allContext = array_merge($conversationContext ?? [], $parameters);
+        
         switch ($predefinedType) {
             case 'email':
-                return $this->sendEmail($parameters, $config, $emailAccountId);
+                return $this->sendEmail($parameters, $config, $emailAccountId, $allContext);
             case 'whatsapp':
-                return $this->sendWhatsApp($parameters, $config);
+                return $this->sendWhatsApp($parameters, $config, $allContext);
             default:
                 return [
                     'success' => false,
@@ -31,7 +40,7 @@ class PredefinedToolService
     /**
      * Send email using predefined tool
      */
-    protected function sendEmail(array $parameters, ?array $config, ?int $emailAccountId = null): array
+    protected function sendEmail(array $parameters, ?array $config, ?int $emailAccountId = null, ?array $allContext = null): array
     {
         try {
             // Usar valores configurados o parámetros de la IA
@@ -39,15 +48,18 @@ class PredefinedToolService
             $subject = $this->getConfigValue('subject', $config, $parameters) ?? 'Sin asunto';
             $body = $this->getConfigValue('body', $config, $parameters) ?? '';
             
+            // Merge context for variable replacement (context takes priority, then parameters)
+            $context = array_merge($parameters, $allContext ?? []);
+            
             // Reemplazar variables en los valores (soporta @{{variable}} y {{variable}})
             if ($to) {
-                $to = $this->replaceVariables($to, $parameters);
+                $to = $this->replaceVariables($to, $context);
             }
             if ($subject) {
-                $subject = $this->replaceVariables($subject, $parameters);
+                $subject = $this->replaceVariables($subject, $context);
             }
             if ($body) {
-                $body = $this->replaceVariables($body, $parameters);
+                $body = $this->replaceVariables($body, $context);
             }
 
             if (!$to) {
@@ -134,7 +146,7 @@ class PredefinedToolService
     /**
      * Send WhatsApp message using predefined tool
      */
-    protected function sendWhatsApp(array $parameters, ?array $config): array
+    protected function sendWhatsApp(array $parameters, ?array $config, ?array $allContext = null): array
     {
         try {
             // Usar valores configurados o parámetros de la IA
@@ -143,15 +155,18 @@ class PredefinedToolService
             $templateLanguage = $this->getConfigValue('template_language', $config, $parameters) ?? 'es';
             $templateParametersRaw = $this->getConfigValue('template_parameters', $config, $parameters);
             
+            // Merge context for variable replacement (context takes priority, then parameters)
+            $context = array_merge($parameters, $allContext ?? []);
+            
             // Reemplazar variables (soporta @{{variable}} y {{variable}})
             if ($to) {
-                $to = $this->replaceVariables($to, $parameters);
+                $to = $this->replaceVariables($to, $context);
             }
             if ($templateName) {
-                $templateName = $this->replaceVariables($templateName, $parameters);
+                $templateName = $this->replaceVariables($templateName, $context);
             }
             if ($templateLanguage) {
-                $templateLanguage = $this->replaceVariables($templateLanguage, $parameters);
+                $templateLanguage = $this->replaceVariables($templateLanguage, $context);
             }
             
             if (!$to) {
@@ -168,18 +183,23 @@ class PredefinedToolService
                 ];
             }
 
-            // Parse template_parameters if it's a JSON string
-            if (is_string($templateParameters)) {
-                $templateParameters = json_decode($templateParameters, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    // If it's not JSON, try to parse as array format
-                    $templateParameters = [];
-                }
+            // Procesar template_parameters (puede ser JSON string o array)
+            if (is_string($templateParametersRaw)) {
+                // Reemplazar variables antes de parsear JSON
+                $templateParametersRaw = $this->replaceVariables($templateParametersRaw, $context);
+                $decoded = json_decode($templateParametersRaw, true);
+                $templateParameters = $decoded !== null ? $decoded : [];
+            } else {
+                $templateParameters = $templateParametersRaw ?? [];
             }
 
-            // If template_parameters is not an array, convert it
-            if (!is_array($templateParameters)) {
-                $templateParameters = [];
+            // Si template_parameters es un array, reemplazar variables en cada elemento
+            if (is_array($templateParameters)) {
+                foreach ($templateParameters as $key => $param) {
+                    if (is_string($param)) {
+                        $templateParameters[$key] = $this->replaceVariables($param, $context);
+                    }
+                }
             }
 
             // Use WhatsAppService to send template message
@@ -245,20 +265,34 @@ class PredefinedToolService
      */
     protected function replaceVariables(string $text, array $context): string
     {
-        if (empty($text) || empty($context)) {
+        if (empty($text)) {
+            return $text;
+        }
+
+        if (empty($context)) {
             return $text;
         }
 
         foreach ($context as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+            
             if (!is_string($value) && !is_numeric($value)) {
                 $value = (string) $value;
             }
             
-            // Replace all possible formats
-            $text = str_replace("@{{$key}}", $value, $text);
-            $text = str_replace("{{{$key}}}", $value, $text);
-            $text = str_replace("{{$key}}", $value, $text);
-            $text = str_replace("{@{$key}}", $value, $text);
+            // Replace all possible formats (case-insensitive for variable name)
+            $patterns = [
+                "@{{$key}}",
+                "{{{$key}}}",
+                "{{$key}}",
+                "{@{$key}}",
+            ];
+            
+            foreach ($patterns as $pattern) {
+                $text = str_replace($pattern, $value, $text);
+            }
         }
         
         return $text;

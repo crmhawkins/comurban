@@ -334,14 +334,13 @@ class LocalAIService
         if ($tool->type === 'predefined' && $tool->predefined_type) {
             try {
                 $predefinedService = new PredefinedToolService();
-                // Expand parameters with conversation context variables
-                $expandedParameters = $this->expandParametersWithContext($parameters, $conversationContext);
                 
                 $result = $predefinedService->execute(
                     $tool->predefined_type,
-                    $expandedParameters,
+                    $parameters,
                     $tool->config,
-                    $tool->email_account_id
+                    $tool->email_account_id,
+                    $conversationContext // Pasar el contexto completo
                 );
 
                 Log::info('Predefined tool executed', [
