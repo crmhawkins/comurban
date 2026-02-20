@@ -143,4 +143,42 @@ class ConfigHelper
             return $result;
         });
     }
+
+    /**
+     * Get a generic setting value from database
+     */
+    public static function getSetting(string $key, ?string $default = null): ?string
+    {
+        $setting = Cache::remember("setting_{$key}", 3600, function () use ($key) {
+            return Setting::where('key', $key)->first();
+        });
+
+        if ($setting && $setting->value) {
+            return $setting->value;
+        }
+
+        return $default;
+    }
+
+    /**
+     * Set a generic setting value in database
+     */
+    public static function setSetting(string $key, string|bool $value): void
+    {
+        // Convert boolean to string for storage
+        if (is_bool($value)) {
+            $value = $value ? '1' : '0';
+        }
+
+        Setting::updateOrCreate(
+            ['key' => $key],
+            [
+                'value' => (string) $value,
+                'type' => is_bool($value) ? 'boolean' : 'string',
+            ]
+        );
+
+        // Clear cache
+        Cache::forget("setting_{$key}");
+    }
 }
