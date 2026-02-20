@@ -194,10 +194,28 @@ class ToolsController extends Controller
             return response()->json(['error' => 'Template ID requerido'], 400);
         }
         
-        $template = \App\Models\Template::find($templateId);
+        // Intentar buscar por ID primero (puede venir como string o int)
+        $template = \App\Models\Template::find((int)$templateId);
+        
+        // Si no se encuentra, intentar buscar por nombre
+        if (!$template) {
+            $template = \App\Models\Template::where('name', $templateId)->first();
+        }
+        
+        // Si aún no se encuentra, buscar por nombre parcial (por si hay espacios o diferencias)
+        if (!$template) {
+            $template = \App\Models\Template::where('name', 'like', '%' . $templateId . '%')->first();
+        }
         
         if (!$template) {
-            return response()->json(['error' => 'Template no encontrado'], 404);
+            \Log::warning('Template not found', [
+                'template_id' => $templateId,
+                'template_id_type' => gettype($templateId),
+            ]);
+            return response()->json([
+                'error' => 'Template no encontrado',
+                'template_id_requested' => $templateId,
+            ], 404);
         }
         
         $variables = [];
@@ -325,6 +343,19 @@ class ToolsController extends Controller
             'variables' => $variables,
         ]);
         
+        // Para debugging, incluir información adicional en la respuesta
+        $debugInfo = [
+            'components_type' => gettype($template->components),
+            'components_count' => is_array($template->components) ? count($template->components) : 0,
+            'components_structure' => is_array($template->components) ? array_map(function($c) {
+                return [
+                    'type' => $c['type'] ?? 'unknown',
+                    'has_text' => isset($c['text']),
+                    'text_preview' => isset($c['text']) ? substr($c['text'], 0, 100) : null,
+                ];
+            }, array_slice($template->components ?? [], 0, 3)) : null,
+        ];
+        
         return response()->json([
             'template' => [
                 'id' => $template->id,
@@ -332,6 +363,7 @@ class ToolsController extends Controller
                 'language' => $template->language,
             ],
             'variables' => $variables,
+            'debug' => $debugInfo, // Información de debugging
         ]);
     }
 

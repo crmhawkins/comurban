@@ -532,6 +532,20 @@
 
             predefinedConfigFields.innerHTML = fieldsHtml;
             predefinedConfigContainer.style.display = 'block';
+
+            // Si es tipo whatsapp y hay un template_id guardado, cargar las variables automáticamente
+            if (selectedType === 'whatsapp') {
+                const savedTemplateId = getConfigValue('template_id');
+                if (savedTemplateId) {
+                    // Esperar a que el DOM se actualice antes de cargar
+                    setTimeout(() => {
+                        const selector = document.getElementById('template_selector');
+                        if (selector && selector.value) {
+                            loadTemplateVariables(selector.value);
+                        }
+                    }, 200);
+                }
+            }
         }
     }
 
@@ -591,6 +605,8 @@
         })
         .then(response => response.json())
         .then(data => {
+            console.log('Template variables response:', data);
+
             if (data.error) {
                 if (container) container.innerHTML = `<p class="text-sm text-red-500">Error: ${data.error}</p>`;
                 return;
@@ -626,7 +642,16 @@
                     `;
                 });
             } else {
-                html += '<p class="text-sm text-gray-500">Este template no tiene variables</p>';
+                // Mostrar información de debugging si está disponible
+                let debugInfo = '';
+                if (data.debug) {
+                    debugInfo = `<div class="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                        <strong>Debug:</strong> Components type: ${data.debug.components_type},
+                        Count: ${data.debug.components_count}
+                        ${data.debug.components_structure ? '<br>Structure: ' + JSON.stringify(data.debug.components_structure) : ''}
+                    </div>`;
+                }
+                html += `<p class="text-sm text-gray-500">Este template no tiene variables detectadas.</p>${debugInfo}`;
             }
 
             if (container) container.innerHTML = html;
