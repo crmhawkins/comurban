@@ -75,6 +75,20 @@
                                             {{ $tool->method }}
                                         </span>
                                     @endif
+                                    @if($tool->platform)
+                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                            {{ $tool->platform === 'whatsapp' ? 'bg-green-100 text-green-800' : '' }}
+                                            {{ $tool->platform === 'elevenlabs' ? 'bg-orange-100 text-orange-800' : '' }}
+                                            {{ $tool->platform === 'both' ? 'bg-indigo-100 text-indigo-800' : '' }}">
+                                            @if($tool->platform === 'whatsapp')
+                                                WhatsApp
+                                            @elseif($tool->platform === 'elevenlabs')
+                                                ElevenLabs
+                                            @else
+                                                Ambas
+                                            @endif
+                                        </span>
+                                    @endif
                                 </div>
                                 <p class="text-sm text-gray-600 mb-3 line-clamp-2">
                                     {{ $tool->description }}

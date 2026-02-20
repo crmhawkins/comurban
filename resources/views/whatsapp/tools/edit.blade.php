@@ -283,6 +283,27 @@
                 <input type="hidden" id="flow_config" name="flow_config" value="{{ old('flow_config', $tool->flow_config ? json_encode($tool->flow_config) : '') }}">
             </div>
 
+            <!-- Plataforma -->
+            <div class="mb-6">
+                <label for="platform" class="block text-sm font-medium text-gray-700 mb-2">
+                    Plataforma <span class="text-red-500">*</span>
+                </label>
+                <select
+                    id="platform"
+                    name="platform"
+                    required
+                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer"
+                >
+                    <option value="whatsapp" {{ old('platform', $tool->platform ?? 'whatsapp') === 'whatsapp' ? 'selected' : '' }}>WhatsApp</option>
+                    <option value="elevenlabs" {{ old('platform', $tool->platform ?? 'whatsapp') === 'elevenlabs' ? 'selected' : '' }}>ElevenLabs</option>
+                    <option value="both" {{ old('platform', $tool->platform ?? 'whatsapp') === 'both' ? 'selected' : '' }}>Ambas (WhatsApp y ElevenLabs)</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Selecciona para qué plataforma está disponible esta herramienta</p>
+                @error('platform')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
             <!-- Activa -->
             <div class="mb-6">
                 <label class="flex items-center">
@@ -413,9 +434,9 @@
                             value="${toValue.replace(/"/g, '&quot;')}"
                             required
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            placeholder="Ej: +34612345678 o 34612345678"
+                            placeholder="Ej: +34612345678 o +34612345678, +34687654321 (múltiples)"
                         />
-                        <p class="mt-1 text-xs text-gray-500">Número de teléfono al que se enviará el mensaje. Puedes usar variables como @{{phone}} o @{{phone_number}}</p>
+                        <p class="mt-1 text-xs text-gray-500">Número de teléfono al que se enviará el mensaje. Puedes usar variables como @{{phone}} o @{{phone_number}}. <strong>Para enviar a múltiples destinatarios, sepáralos por comas</strong> (ej: +34612345678, +34687654321)</p>
                     </div>
                 `;
 

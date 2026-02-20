@@ -53,6 +53,7 @@ class ToolsController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'type' => 'required|in:custom,predefined',
+            'platform' => 'required|in:whatsapp,elevenlabs,both',
             'active' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
         ];
@@ -147,6 +148,7 @@ class ToolsController extends Controller
         }
 
         $validated['active'] = $request->has('active');
+        $validated['platform'] = $request->input('platform', 'whatsapp');
         $validated['timeout'] = $validated['timeout'] ?? 30;
         $validated['order'] = $validated['order'] ?? 0;
 
@@ -404,6 +406,7 @@ class ToolsController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'type' => 'required|in:custom,predefined',
+            'platform' => 'required|in:whatsapp,elevenlabs,both',
             'active' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
         ];
@@ -498,6 +501,7 @@ class ToolsController extends Controller
         }
 
         $validated['active'] = $request->has('active');
+        $validated['platform'] = $request->input('platform', 'whatsapp');
         $validated['timeout'] = $validated['timeout'] ?? 30;
         $validated['order'] = $validated['order'] ?? 0;
 

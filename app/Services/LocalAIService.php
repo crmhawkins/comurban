@@ -314,7 +314,9 @@ class LocalAIService
         }
 
         // Add available tools information (completely dynamic based on active tools)
-        $tools = WhatsAppTool::active()->ordered()->get();
+        // Filter by platform if provided in context
+        $platform = $conversationContext['platform'] ?? 'whatsapp';
+        $tools = WhatsAppTool::active()->forPlatform($platform)->ordered()->get();
         if ($tools->count() > 0) {
             $prompt .= "HERRAMIENTAS DISPONIBLES:\n";
             $prompt .= "Tienes acceso a las siguientes herramientas que puedes usar cuando sea necesario.\n";

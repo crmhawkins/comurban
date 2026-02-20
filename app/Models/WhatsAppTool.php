@@ -22,6 +22,7 @@ class WhatsAppTool extends Model
         'flow_config',
         'email_account_id',
         'active',
+        'platform',
         'order',
     ];
 
@@ -53,7 +54,7 @@ class WhatsAppTool extends Model
                 'name' => 'Enviar WhatsApp',
                 'description' => 'Envía un mensaje de WhatsApp usando una plantilla',
                 'config_fields' => [
-                    'to' => ['label' => 'Número de teléfono', 'required' => true, 'variable' => '{{to}}'],
+                    'to' => ['label' => 'Número(s) de teléfono', 'required' => true, 'variable' => '{{to}}', 'help' => 'Puedes ingresar uno o varios números separados por comas (ej: +34612345678, +34687654321)'],
                     'template_name' => ['label' => 'Nombre de la plantilla', 'required' => true, 'variable' => '{{template_name}}'],
                     'template_language' => ['label' => 'Idioma de la plantilla', 'required' => false, 'variable' => '{{template_language}}', 'default' => 'es'],
                     'template_parameters' => ['label' => 'Parámetros de la plantilla (JSON)', 'required' => false, 'variable' => '{{template_parameters}}'],
@@ -68,6 +69,17 @@ class WhatsAppTool extends Model
     public function scopeActive($query)
     {
         return $query->where('active', true);
+    }
+
+    /**
+     * Scope para filtrar por plataforma
+     */
+    public function scopeForPlatform($query, string $platform)
+    {
+        return $query->where(function($q) use ($platform) {
+            $q->where('platform', $platform)
+              ->orWhere('platform', 'both');
+        });
     }
 
     /**

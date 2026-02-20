@@ -449,8 +449,8 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 $context['summary'] = $recentIncident->incident_summary ?? '';
             }
 
-            // Get active tools
-            $tools = \App\Models\WhatsAppTool::active()->ordered()->get();
+            // Get active tools for ElevenLabs platform
+            $tools = \App\Models\WhatsAppTool::active()->forPlatform('elevenlabs')->ordered()->get();
 
             if ($tools->isEmpty()) {
                 Log::debug('No active tools available for call', [

@@ -247,6 +247,27 @@
                 <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
             </div>
 
+            <!-- Plataforma -->
+            <div class="mb-6">
+                <label for="platform" class="block text-sm font-medium text-gray-700 mb-2">
+                    Plataforma <span class="text-red-500">*</span>
+                </label>
+                <select
+                    id="platform"
+                    name="platform"
+                    required
+                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer"
+                >
+                    <option value="whatsapp" {{ old('platform', 'whatsapp') === 'whatsapp' ? 'selected' : '' }}>WhatsApp</option>
+                    <option value="elevenlabs" {{ old('platform', 'whatsapp') === 'elevenlabs' ? 'selected' : '' }}>ElevenLabs</option>
+                    <option value="both" {{ old('platform', 'whatsapp') === 'both' ? 'selected' : '' }}>Ambas (WhatsApp y ElevenLabs)</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Selecciona para qué plataforma está disponible esta herramienta</p>
+                @error('platform')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
             <!-- Activa -->
             <div class="mb-6">
                 <label class="flex items-center">
@@ -291,7 +312,7 @@
 
     const predefinedTypes = @json($predefinedTypes);
     const templates = @json($templates ?? []);
-    
+
     // Variables disponibles del contexto
     const contextVariables = [
         { value: '@{{phone}}', label: 'Teléfono' },
@@ -356,7 +377,7 @@
             const tool = predefinedTypes[selectedType];
             const configFields = tool.config_fields;
             const oldConfig = @json(old('config', []));
-            
+
             let fieldsHtml = '<h3 class="text-lg font-semibold text-gray-800 mb-4">Configuración de la Tool</h3>';
 
             // Si es tipo whatsapp, mostrar selector de templates
@@ -375,16 +396,16 @@
                             value="${toValue.replace(/"/g, '&quot;')}"
                             required
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            placeholder="Ej: +34612345678 o 34612345678"
+                            placeholder="Ej: +34612345678 o +34612345678, +34687654321 (múltiples)"
                         />
-                        <p class="mt-1 text-xs text-gray-500">Número de teléfono al que se enviará el mensaje. Puedes usar variables como @{{phone}} o @{{phone_number}}</p>
+                        <p class="mt-1 text-xs text-gray-500">Número de teléfono al que se enviará el mensaje. Puedes usar variables como @{{phone}} o @{{phone_number}}. <strong>Para enviar a múltiples destinatarios, sepáralos por comas</strong> (ej: +34612345678, +34687654321)</p>
                     </div>
                 `;
 
                 // Campo template_name con selector
                 const templateNameValue = oldConfig['template_name'] || '';
                 const templateId = oldConfig['template_id'] || '';
-                
+
                 fieldsHtml += `
                     <div class="mb-4">
                         <label for="config_template_name" class="block text-sm font-medium text-gray-700 mb-2">
@@ -407,7 +428,7 @@
                         <p class="mt-1 text-xs text-gray-500">Selecciona una plantilla aprobada de WhatsApp</p>
                     </div>
                 `;
-                
+
                 // Campo template_language
                 const templateLanguageValue = oldConfig['template_language'] || 'es';
                 fieldsHtml += `
@@ -425,7 +446,7 @@
                         />
                     </div>
                 `;
-                
+
                 // Contenedor para variables del template
                 fieldsHtml += `
                     <div id="template-variables-container" class="mb-4">
@@ -481,45 +502,45 @@
                     `;
                 }
             }
-            
+
             predefinedConfigFields.innerHTML = fieldsHtml;
             predefinedConfigContainer.style.display = 'block';
         } else {
             predefinedConfigContainer.style.display = 'none';
         }
     }
-    
+
     // Cargar variables del template seleccionado
     window.loadTemplateVariables = function(templateId) {
         const container = document.getElementById('template-variables-container');
         const templateNameInput = document.getElementById('config_template_name');
         const templateIdInput = document.getElementById('config_template_id');
         const templateSelector = document.getElementById('template_selector');
-        
+
         if (!templateId) {
             if (container) container.innerHTML = '<p class="text-sm text-gray-500">Selecciona una plantilla para ver sus variables</p>';
             if (templateNameInput) templateNameInput.value = '';
             if (templateIdInput) templateIdInput.value = '';
             return;
         }
-        
+
         // Obtener nombre del template del option seleccionado
         const selectedOption = templateSelector.options[templateSelector.selectedIndex];
         const templateName = selectedOption.getAttribute('data-name');
         const templateLanguage = selectedOption.getAttribute('data-language');
-        
+
         if (templateNameInput) templateNameInput.value = templateName;
         if (templateIdInput) templateIdInput.value = templateId;
-        
+
         // Actualizar idioma si está vacío
         const languageInput = document.getElementById('config_template_language');
         if (languageInput && !languageInput.value) {
             languageInput.value = templateLanguage || 'es';
         }
-        
+
         // Mostrar loading
         if (container) container.innerHTML = '<p class="text-sm text-gray-500">Cargando variables del template...</p>';
-        
+
         // Hacer petición AJAX
         fetch(`{{ route('whatsapp.tools.template-variables') }}?template_id=${templateId}`, {
             headers: {
@@ -533,14 +554,14 @@
                 if (container) container.innerHTML = `<p class="text-sm text-red-500">Error: ${data.error}</p>`;
                 return;
             }
-            
+
             // Generar campos para cada variable
             let html = '<h4 class="text-md font-semibold text-gray-700 mb-3">Variables del Template</h4>';
-            
+
             if (data.variables && data.variables.length > 0) {
                 data.variables.forEach((variable) => {
                     const varIndex = variable.index;
-                    
+
                     html += `
                         <div class="mb-3">
                             <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -562,7 +583,7 @@
             } else {
                 html += '<p class="text-sm text-gray-500">Este template no tiene variables</p>';
             }
-            
+
             if (container) container.innerHTML = html;
             updateTemplateParameters();
         })
@@ -571,26 +592,26 @@
             if (container) container.innerHTML = '<p class="text-sm text-red-500">Error al cargar las variables del template</p>';
         });
     };
-    
+
     // Actualizar campo template_parameters con los valores seleccionados
     window.updateTemplateParameters = function() {
         const selects = document.querySelectorAll('select[name^="template_var_"]');
         const params = {};
-        
+
         selects.forEach(select => {
             const varIndex = select.name.replace('template_var_', '');
             if (select.value) {
                 params[varIndex] = select.value;
             }
         });
-        
+
         // Convertir a array ordenado para template_parameters
         const paramArray = [];
         const sortedKeys = Object.keys(params).map(k => parseInt(k)).sort((a, b) => a - b);
         sortedKeys.forEach(key => {
             paramArray.push(params[key]);
         });
-        
+
         // Actualizar campo hidden o crear uno si no existe
         let paramInput = document.getElementById('config_template_parameters');
         if (!paramInput) {
@@ -601,7 +622,7 @@
             const container = document.getElementById('template-variables-container');
             if (container) container.appendChild(paramInput);
         }
-        
+
         paramInput.value = JSON.stringify(paramArray);
     };
 
@@ -634,7 +655,7 @@
         generateConfigFields();
     });
     methodSelect.addEventListener('change', toggleJsonFormat);
-    
+
     // Ejecutar al cargar la página
     toggleType();
     updatePredefinedDescription();

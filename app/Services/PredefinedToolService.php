@@ -193,6 +193,36 @@ class PredefinedToolService
                 ];
             }
 
+            // Procesar múltiples destinatarios
+            // Puede venir como string separado por comas, o como array JSON
+            $recipients = [];
+            if (is_string($to)) {
+                // Intentar parsear como JSON primero
+                $decoded = json_decode($to, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $recipients = $decoded;
+                } else {
+                    // Si no es JSON, separar por comas
+                    $recipients = array_map('trim', explode(',', $to));
+                }
+            } elseif (is_array($to)) {
+                $recipients = $to;
+            } else {
+                $recipients = [$to];
+            }
+
+            // Filtrar valores vacíos
+            $recipients = array_filter($recipients, function($recipient) {
+                return !empty(trim($recipient));
+            });
+
+            if (empty($recipients)) {
+                return [
+                    'success' => false,
+                    'error' => 'No se encontraron destinatarios válidos',
+                ];
+            }
+
             // Procesar template_parameters (puede ser JSON string o array)
             $templateParameters = [];
             
@@ -274,18 +304,61 @@ class PredefinedToolService
                 'phone_number_value' => $context['phone_number'] ?? 'NOT_SET',
             ]);
 
-            // Use WhatsAppService to send template message
+            // Use WhatsAppService to send template message to all recipients
             $whatsappService = new WhatsAppService();
-            $result = $whatsappService->sendTemplateMessage(
-                $to,
-                $templateName,
-                $templateLanguage,
-                $templateParameters
-            );
+            $results = [];
+            $successCount = 0;
+            $errorCount = 0;
+            $errors = [];
 
-            if ($result['success']) {
-                Log::info('WhatsApp message sent via predefined tool', [
-                    'to' => $to,
+            foreach ($recipients as $recipient) {
+                $recipient = trim($recipient);
+                if (empty($recipient)) {
+                    continue;
+                }
+
+                try {
+                    $result = $whatsappService->sendTemplateMessage(
+                        $recipient,
+                        $templateName,
+                        $templateLanguage,
+                        $templateParameters
+                    );
+
+                    if ($result['success'] ?? false) {
+                        $successCount++;
+                        $results[] = [
+                            'recipient' => $recipient,
+                            'success' => true,
+                            'message_id' => $result['messages'][0]['id'] ?? null,
+                        ];
+                    } else {
+                        $errorCount++;
+                        $error = $result['error'] ?? 'Error desconocido';
+                        $errors[] = "{$recipient}: {$error}";
+                        $results[] = [
+                            'recipient' => $recipient,
+                            'success' => false,
+                            'error' => $error,
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $errorCount++;
+                    $error = $e->getMessage();
+                    $errors[] = "{$recipient}: {$error}";
+                    $results[] = [
+                        'recipient' => $recipient,
+                        'success' => false,
+                        'error' => $error,
+                    ];
+                }
+            }
+
+            // Return result based on success rate
+            if ($successCount > 0 && $errorCount === 0) {
+                // All successful
+                Log::info('WhatsApp messages sent via predefined tool', [
+                    'recipients_count' => $successCount,
                     'template_name' => $templateName,
                     'template_language' => $templateLanguage,
                 ]);
@@ -293,17 +366,46 @@ class PredefinedToolService
                 return [
                     'success' => true,
                     'data' => [
-                        'message' => 'Mensaje de WhatsApp enviado correctamente',
+                        'message' => "Mensaje enviado a {$successCount} destinatario(s)",
                         'status' => 'enviado',
-                        // No incluir información sensible como 'to'
+                        'recipients_count' => $successCount,
+                        'results' => $results,
                     ],
                 ];
-            }
+            } elseif ($successCount > 0 && $errorCount > 0) {
+                // Partial success
+                Log::warning('WhatsApp messages partially sent via predefined tool', [
+                    'success_count' => $successCount,
+                    'error_count' => $errorCount,
+                    'total_recipients' => count($recipients),
+                    'template_name' => $templateName,
+                ]);
 
-            return [
-                'success' => false,
-                'error' => $result['error'] ?? 'Error desconocido al enviar el mensaje de WhatsApp',
-            ];
+                return [
+                    'success' => true,
+                    'data' => [
+                        'message' => "Mensaje enviado a {$successCount} de " . count($recipients) . " destinatario(s)",
+                        'status' => 'parcial',
+                        'success_count' => $successCount,
+                        'error_count' => $errorCount,
+                        'results' => $results,
+                        'errors' => $errors,
+                    ],
+                ];
+            } else {
+                // All failed
+                Log::error('WhatsApp messages failed via predefined tool', [
+                    'error_count' => $errorCount,
+                    'total_recipients' => count($recipients),
+                    'errors' => $errors,
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => 'Error al enviar a todos los destinatarios: ' . implode('; ', $errors),
+                    'results' => $results,
+                ];
+            }
         } catch (\Exception $e) {
             Log::error('Error sending WhatsApp via predefined tool', [
                 'error' => $e->getMessage(),

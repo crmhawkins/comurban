@@ -480,6 +480,7 @@ class ProcessWebhookEvent implements ShouldQueue
 
             // Build conversation context for tools
             $conversationContext = $this->buildConversationContext($conversation, $contact, $history);
+            $conversationContext['platform'] = 'whatsapp'; // Indicate this is WhatsApp
 
             // Check if conversation is in a flow
             $flowService = new \App\Services\FlowService();
