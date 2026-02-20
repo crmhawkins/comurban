@@ -350,8 +350,7 @@ class CallsController extends Controller
                 'summary' => $incidentSummary,
             ]);
 
-            // Send notification via WhatsApp template
-            $this->sendIncidentNotification($incident);
+            // No enviar notificación automática - solo cuando la IA use una tool explícitamente
         } catch (\Exception $e) {
             Log::error('Error in detectAndCreateIncidentFromCall (syncLatest)', [
                 'call_id' => $call->id ?? null,
@@ -362,62 +361,4 @@ class CallsController extends Controller
         }
     }
 
-    /**
-     * Send incident notification via WhatsApp template
-     */
-    protected function sendIncidentNotification(Incident $incident): void
-    {
-        try {
-            $whatsappService = new \App\Services\WhatsAppService();
-            
-            // Prepare template parameters
-            $incidentType = $incident->incident_type ?? 'Desconocido';
-            $phoneNumber = $incident->phone_number ?? 'Sin teléfono';
-            $summary = $incident->incident_summary ?? 'Sin resumen';
-            $method = $incident->source_type === 'whatsapp' ? 'whatsapp' : 'llamada';
-            
-            // Format phone number if needed (remove + if present, then add it)
-            $phoneNumberFormatted = $phoneNumber;
-            if (!str_starts_with($phoneNumber, '+')) {
-                // If it starts with 34, add +
-                if (str_starts_with($phoneNumber, '34')) {
-                    $phoneNumberFormatted = '+' . $phoneNumber;
-                } else {
-                    $phoneNumberFormatted = $phoneNumber;
-                }
-            }
-            
-            // Send template message to +34 634261382
-            $result = $whatsappService->sendTemplateMessage(
-                '+34634261382',
-                'incidencia',
-                'es',
-                [
-                    $incidentType,
-                    $phoneNumberFormatted,
-                    $summary,
-                    $method,
-                ]
-            );
-            
-            if (!$result['success'] || isset($result['error'])) {
-                Log::error('Failed to send incident notification', [
-                    'incident_id' => $incident->id,
-                    'error' => $result['error'] ?? 'Unknown error',
-                ]);
-            } else {
-                $messageId = $result['data']['messages'][0]['id'] ?? null;
-                Log::info('Incident notification sent successfully', [
-                    'incident_id' => $incident->id,
-                    'message_id' => $messageId,
-                ]);
-            }
-        } catch (\Exception $e) {
-            Log::error('Error sending incident notification', [
-                'incident_id' => $incident->id,
-                'error' => $e->getMessage(),
-            ]);
-            // Don't throw - notification failure shouldn't break incident creation
-        }
-    }
 }
