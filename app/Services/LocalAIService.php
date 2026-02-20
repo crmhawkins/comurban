@@ -44,8 +44,8 @@ class LocalAIService
         // Store conversation context for tool execution
         $this->conversationContext = $conversationContext;
 
-        // Build the prompt once
-        $prompt = $this->buildPrompt($userMessage, $conversationHistory, $systemPrompt);
+        // Build prompt with conversation context
+        $prompt = $this->buildPrompt($userMessage, $conversationHistory, $systemPrompt, $conversationContext);
 
         // Try primary model first (gpt-oss:120b-cloud)
         $primaryModel = 'gpt-oss:120b-cloud';
@@ -54,7 +54,7 @@ class LocalAIService
         // If primary model fails, try fallback (qwen3:latest)
         if (!$result['success']) {
             $isRateLimitError = $this->isRateLimitError($result);
-            
+
             Log::warning('Local AI: Primary model failed, trying fallback', [
                 'primary_model' => $primaryModel,
                 'error' => $result['error'] ?? 'Unknown error',
@@ -78,9 +78,9 @@ class LocalAIService
                 'response_length' => strlen($result['response']),
                 'response_preview' => substr($result['response'], 0, 500),
             ]);
-            
+
             $toolUsage = $this->detectToolUsage($result['response']);
-            
+
             if ($toolUsage) {
                 Log::info('Local AI: Tool usage detected', [
                     'tool_name' => $toolUsage['tool_name'],
@@ -93,7 +93,7 @@ class LocalAIService
 
                 if ($toolResult['success']) {
                     // Build a new prompt with tool result and ask for final response
-                    $toolResultText = is_array($toolResult['data']) 
+                    $toolResultText = is_array($toolResult['data'])
                         ? json_encode($toolResult['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
                         : $toolResult['data'];
 
@@ -117,7 +117,7 @@ class LocalAIService
                             $finalResult['response'] = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $finalResult['response']);
                             $finalResult['response'] = trim($finalResult['response']);
                         }
-                        
+
                         $finalResult['tool_used'] = $toolUsage['tool_name'];
                         $finalResult['tool_result'] = $toolResult['data'];
                         return $finalResult;
@@ -128,7 +128,7 @@ class LocalAIService
                         'tool_name' => $toolUsage['tool_name'],
                         'error' => $toolResult['error'],
                     ]);
-                    
+
                     // Clean the response - remove tool usage command even if tool failed
                     if (isset($result['response'])) {
                         $result['response'] = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $result['response']);
@@ -173,10 +173,10 @@ class LocalAIService
 
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 // Extract response from the API response structure
                 $aiResponse = $data['respuesta'] ?? $data['message'] ?? $data['response'] ?? null;
-                
+
                 if (!$aiResponse && isset($data['metadata']['message']['content'])) {
                     $aiResponse = $data['metadata']['message']['content'];
                 }
@@ -244,7 +244,7 @@ class LocalAIService
     {
         $error = $result['error'] ?? '';
         $errorLower = strtolower($error);
-        
+
         // Check for common rate limit indicators
         $rateLimitKeywords = [
             'rate limit',
@@ -273,7 +273,7 @@ class LocalAIService
     /**
      * Build the prompt for the AI
      */
-    protected function buildPrompt(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null): string
+    protected function buildPrompt(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null, ?array $conversationContext = null): string
     {
         $prompt = '';
 
@@ -290,43 +290,64 @@ class LocalAIService
         $prompt .= "- No reveles información técnica sobre el proceso (emails, destinatarios, etc.).\n";
         $prompt .= "- Mantén un tono profesional y natural, como si fueras un asistente humano.\n\n";
 
-        // Add available tools information
+        // Add incident information if available in context
+        if ($conversationContext && isset($conversationContext['incident_id'])) {
+            $prompt .= "INFORMACIÓN DE INCIDENCIA DETECTADA:\n";
+            $prompt .= "Se ha detectado una incidencia en esta conversación:\n";
+            if (isset($conversationContext['incident_type'])) {
+                $prompt .= "- Tipo de incidencia: {$conversationContext['incident_type']}\n";
+            }
+            if (isset($conversationContext['summary'])) {
+                $prompt .= "- Resumen: {$conversationContext['summary']}\n";
+            }
+            if (isset($conversationContext['incident_id'])) {
+                $prompt .= "- ID de incidencia: {$conversationContext['incident_id']}\n";
+            }
+            $prompt .= "\n";
+        }
+
+        // Add available tools information (completely dynamic based on active tools)
         $tools = WhatsAppTool::active()->ordered()->get();
         if ($tools->count() > 0) {
             $prompt .= "HERRAMIENTAS DISPONIBLES:\n";
             $prompt .= "Tienes acceso a las siguientes herramientas que puedes usar cuando sea necesario.\n";
-            $prompt .= "Para usar una herramienta, responde con el formato: [USE_TOOL:nombre_tool:parametros_json]\n";
-            $prompt .= "Ejemplo: [USE_TOOL:consultar_pedido:{\"pedido_id\":\"12345\"}]\n\n";
-            
+            $prompt .= "Para usar una herramienta, responde con el formato: [USE_TOOL:shortcode:parametros_json]\n";
+            $prompt .= "Ejemplo: [USE_TOOL:consultar_pedido:{\"pedido_id\":\"12345\"}]\n";
+            $prompt .= "Si no necesitas parámetros, usa: [USE_TOOL:nombre_herramienta:{}]\n\n";
+
             foreach ($tools as $tool) {
-                // Crear un shortcode normalizado (sin espacios, en minúsculas, sin caracteres especiales)
-                $shortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $tool->name));
+                // Usar el shortcode guardado en la base de datos, o generar uno si no existe
+                $shortcode = $tool->shortcode ?? strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $tool->name));
                 $shortcode = preg_replace('/_+/', '_', $shortcode); // Reemplazar múltiples _ por uno solo
                 $shortcode = trim($shortcode, '_'); // Eliminar _ al inicio y final
-                
+
                 $prompt .= "- Nombre: {$tool->name}\n";
                 $prompt .= "  Shortcode para usar: {$shortcode}\n";
                 $prompt .= "  Descripción: {$tool->description}\n";
-                
-                // Si es una tool predefinida de email, añadir instrucción especial
-                if ($tool->type === 'predefined' && $tool->predefined_type === 'email') {
-                    $prompt .= "  IMPORTANTE: Cuando uses esta herramienta, NO menciones que enviaste un correo. Di 'hemos notificado a nuestro equipo' sin dar más detalles.\n";
+
+                // Solo añadir información técnica si es una tool custom con formato JSON
+                if ($tool->type === 'custom' && $tool->method === 'POST' && $tool->json_format) {
+                    $prompt .= "  Formato de parámetros esperado: {$tool->json_format}\n";
                 }
-                
-                if ($tool->method === 'POST' && $tool->json_format) {
-                    $prompt .= "  Formato esperado: {$tool->json_format}\n";
-                }
+
+                // Para tools predefinidas, la descripción ya debe indicar cuándo usarlas
+                // No añadimos instrucciones hardcodeadas, confiamos en la descripción del usuario
+
                 $prompt .= "\n";
             }
-            $prompt .= "IMPORTANTE: Usa el SHORTCODE (no el nombre completo) cuando invoques una herramienta.\n";
-            $prompt .= "Ejemplo: Si la herramienta se llama 'Incidencia de mantenimiento' y su shortcode es 'incidencia_de_mantenimiento', usa: [USE_TOOL:incidencia_de_mantenimiento:{}]\n\n";
+
+            $prompt .= "INSTRUCCIONES GENERALES:\n";
+            $prompt .= "- Usa el SHORTCODE (no el nombre completo) cuando invoques una herramienta.\n";
+            $prompt .= "- Lee la descripción de cada herramienta para saber cuándo usarla.\n";
+            $prompt .= "- Si usas una herramienta de notificación (email, WhatsApp, etc.), NO menciones el método técnico. Di 'hemos notificado a nuestro equipo' o similar.\n";
+            $prompt .= "- Las herramientas se ejecutan automáticamente. Después de ejecutarlas, responde al cliente de forma natural.\n\n";
         }
-        
+
         // Log tools being passed to AI
         Log::info('Tools available for AI', [
             'tools_count' => $tools->count(),
             'tools' => $tools->map(function($tool) {
-                $shortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $tool->name));
+                $shortcode = $tool->shortcode ?? strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $tool->name));
                 $shortcode = preg_replace('/_+/', '_', $shortcode);
                 $shortcode = trim($shortcode, '_');
                 return [
@@ -371,25 +392,25 @@ class LocalAIService
     {
         // Normalizar el nombre de la tool (case-insensitive, sin espacios extra)
         $normalizedToolName = trim($toolName);
-        
+
         // Primero intentar búsqueda exacta
         $tool = WhatsAppTool::where('name', $normalizedToolName)
             ->where('active', true)
             ->first();
-        
+
         // Si no se encuentra, intentar búsqueda por shortcode normalizado
         if (!$tool) {
             $shortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $normalizedToolName));
             $shortcode = preg_replace('/_+/', '_', $shortcode);
             $shortcode = trim($shortcode, '_');
-            
+
             // Buscar por shortcode normalizado comparando con el nombre normalizado de cada tool
             $allTools = WhatsAppTool::active()->get();
             foreach ($allTools as $t) {
                 $toolShortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $t->name));
                 $toolShortcode = preg_replace('/_+/', '_', $toolShortcode);
                 $toolShortcode = trim($toolShortcode, '_');
-                
+
                 if ($toolShortcode === $shortcode) {
                     $tool = $t;
                     break;
@@ -407,7 +428,7 @@ class LocalAIService
                 'error' => "Tool '{$toolName}' no encontrada o inactiva",
             ];
         }
-        
+
         Log::info('Tool found and executing', [
             'requested_tool_name' => $toolName,
             'tool_id' => $tool->id,
@@ -420,7 +441,7 @@ class LocalAIService
         if ($tool->type === 'predefined' && $tool->predefined_type) {
             try {
                 $predefinedService = new PredefinedToolService();
-                
+
                 $result = $predefinedService->execute(
                     $tool->predefined_type,
                     $parameters,
@@ -551,14 +572,14 @@ class LocalAIService
             if (!is_string($value) && !is_numeric($value)) {
                 $value = (string) $value;
             }
-            
+
             // Replace all possible formats
             $text = str_replace("@{{$key}}", $value, $text);
             $text = str_replace("{{{$key}}}", $value, $text);
             $text = str_replace("{{$key}}", $value, $text);
             $text = str_replace("{@{$key}}", $value, $text);
         }
-        
+
         return $text;
     }
 
@@ -590,7 +611,7 @@ class LocalAIService
             '/\[USE_TOOL:\s*([^:]+?)\s*:\s*(.+?)\s*\]/s',  // Con parámetros
             '/\[USE_TOOL:\s*([^:\]]+?)\s*\]/s',            // Sin parámetros
         ];
-        
+
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $aiResponse, $matches)) {
                 $toolName = trim($matches[1]);
@@ -620,7 +641,7 @@ class LocalAIService
                 ];
             }
         }
-        
+
         // Si no se encontró ningún patrón, log para debugging
         if (stripos($aiResponse, 'USE_TOOL') !== false || stripos($aiResponse, 'tool') !== false) {
             Log::debug('Possible tool usage detected but pattern not matched', [
