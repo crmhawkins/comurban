@@ -290,6 +290,21 @@
     const jsonFormatContainer = document.getElementById('json-format-container');
 
     const predefinedTypes = @json($predefinedTypes);
+    const templates = @json($templates ?? []);
+    
+    // Variables disponibles del contexto
+    const contextVariables = [
+        { value: '{{phone}}', label: 'Teléfono' },
+        { value: '{{name}}', label: 'Nombre' },
+        { value: '{{date}}', label: 'Fecha' },
+        { value: '{{conversation_topic}}', label: 'Tema de conversación' },
+        { value: '{{conversation_summary}}', label: 'Resumen de conversación' },
+        { value: '{{incident_type}}', label: 'Tipo de incidencia' },
+        { value: '{{summary}}', label: 'Resumen' },
+        { value: '{{phone_number}}', label: 'Número de teléfono' },
+        { value: '{{contact_name}}', label: 'Nombre del contacto' },
+        { value: '{{incident_id}}', label: 'ID de incidencia' },
+    ];
 
     const emailAccountContainer = document.getElementById('email-account-container');
     const headersContainer = document.getElementById('headers-container');
@@ -341,65 +356,234 @@
             const tool = predefinedTypes[selectedType];
             const configFields = tool.config_fields;
             const oldConfig = @json(old('config', []));
+            
+            let fieldsHtml = '<h3 class="text-lg font-semibold text-gray-800 mb-4">Configuración de la Tool</h3>';
 
-            for (const [key, field] of Object.entries(configFields)) {
-                const fieldId = `config_${key}`;
-                const fieldValue = oldConfig[key] || field.default || '';
-                const isRequired = field.required ? 'required' : '';
-                const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
-
-                let fieldHtml = `
-                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
-                            ${field.label} ${requiredStar}
+            // Si es tipo whatsapp, mostrar selector de templates
+            if (selectedType === 'whatsapp') {
+                // Campo template_name con selector
+                const templateNameValue = oldConfig['template_name'] || '';
+                const templateId = oldConfig['template_id'] || '';
+                
+                fieldsHtml += `
+                    <div class="mb-4">
+                        <label for="config_template_name" class="block text-sm font-medium text-gray-700 mb-2">
+                            Plantilla de WhatsApp <span class="text-red-500">*</span>
                         </label>
-                `;
-
-                // Si es template_parameters o body, usar textarea
-                if (key === 'template_parameters' || key === 'body') {
-                    const rows = key === 'template_parameters' ? 3 : 6;
-                    const placeholder = key === 'template_parameters' ? '["parámetro1", "parámetro2"]' : 'Escribe el cuerpo del mensaje aquí...';
-                    const fontClass = key === 'template_parameters' ? 'font-mono text-sm' : '';
-                    
-                    fieldHtml += `
-                        <textarea
-                            id="${fieldId}"
-                            name="config[${key}]"
-                            rows="${rows}"
-                            ${isRequired}
-                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 ${fontClass}"
-                            placeholder="${placeholder}"
-                        >${fieldValue}</textarea>
-                    `;
-                } else {
-                    fieldHtml += `
-                        <input
-                            type="text"
-                            id="${fieldId}"
-                            name="config[${key}]"
-                            value="${fieldValue}"
-                            ${isRequired}
+                        <select
+                            id="template_selector"
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            placeholder="${field.label}"
-                        />
-                    `;
-                }
-
-                fieldHtml += `
-                        <p class="mt-1 text-xs text-gray-500">
-                            Puedes usar variables: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
-                        </p>
+                            onchange="loadTemplateVariables(this.value)"
+                        >
+                            <option value="">Selecciona una plantilla</option>
+                            ${templates.map(t => `
+                                <option value="${t.id}" ${templateId == t.id ? 'selected' : ''} data-name="${t.name}" data-language="${t.language}">
+                                    ${t.name} (${t.language})
+                                </option>
+                            `).join('')}
+                        </select>
+                        <input type="hidden" id="config_template_name" name="config[template_name]" value="${templateNameValue}">
+                        <input type="hidden" id="config_template_id" name="config[template_id]" value="${templateId}">
+                        <p class="mt-1 text-xs text-gray-500">Selecciona una plantilla aprobada de WhatsApp</p>
                     </div>
                 `;
+                
+                // Campo template_language
+                const templateLanguageValue = oldConfig['template_language'] || 'es';
+                fieldsHtml += `
+                    <div class="mb-4">
+                        <label for="config_template_language" class="block text-sm font-medium text-gray-700 mb-2">
+                            Idioma de la plantilla
+                        </label>
+                        <input
+                            type="text"
+                            id="config_template_language"
+                            name="config[template_language]"
+                            value="${templateLanguageValue}"
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="es"
+                        />
+                    </div>
+                `;
+                
+                // Contenedor para variables del template
+                fieldsHtml += `
+                    <div id="template-variables-container" class="mb-4">
+                        <p class="text-sm text-gray-500">Selecciona una plantilla para ver sus variables</p>
+                    </div>
+                `;
+            } else {
+                // Para otros tipos (email), generar campos normalmente
+                for (const [key, field] of Object.entries(configFields)) {
+                    const fieldId = `config_${key}`;
+                    const fieldValue = oldConfig[key] || field.default || '';
+                    const isRequired = field.required ? 'required' : '';
+                    const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
 
-                predefinedConfigFields.innerHTML += fieldHtml;
+                    fieldsHtml += `
+                        <div class="mb-4">
+                            <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                                ${field.label} ${requiredStar}
+                            </label>
+                    `;
+
+                    // Si es body, usar textarea
+                    if (key === 'body') {
+                        fieldsHtml += `
+                            <textarea
+                                id="${fieldId}"
+                                name="config[${key}]"
+                                rows="6"
+                                ${isRequired}
+                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                placeholder="Escribe el cuerpo del mensaje aquí..."
+                            >${fieldValue}</textarea>
+                        `;
+                    } else {
+                        fieldsHtml += `
+                            <input
+                                type="text"
+                                id="${fieldId}"
+                                name="config[${key}]"
+                                value="${fieldValue}"
+                                ${isRequired}
+                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                placeholder="${field.label}"
+                            />
+                        `;
+                    }
+
+                    fieldsHtml += `
+                            <p class="mt-1 text-xs text-gray-500">
+                                Puedes usar variables: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
+                            </p>
+                        </div>
+                    `;
+                }
             }
-
+            
+            predefinedConfigFields.innerHTML = fieldsHtml;
             predefinedConfigContainer.style.display = 'block';
         } else {
             predefinedConfigContainer.style.display = 'none';
         }
     }
+    
+    // Cargar variables del template seleccionado
+    window.loadTemplateVariables = function(templateId) {
+        const container = document.getElementById('template-variables-container');
+        const templateNameInput = document.getElementById('config_template_name');
+        const templateIdInput = document.getElementById('config_template_id');
+        const templateSelector = document.getElementById('template_selector');
+        
+        if (!templateId) {
+            if (container) container.innerHTML = '<p class="text-sm text-gray-500">Selecciona una plantilla para ver sus variables</p>';
+            if (templateNameInput) templateNameInput.value = '';
+            if (templateIdInput) templateIdInput.value = '';
+            return;
+        }
+        
+        // Obtener nombre del template del option seleccionado
+        const selectedOption = templateSelector.options[templateSelector.selectedIndex];
+        const templateName = selectedOption.getAttribute('data-name');
+        const templateLanguage = selectedOption.getAttribute('data-language');
+        
+        if (templateNameInput) templateNameInput.value = templateName;
+        if (templateIdInput) templateIdInput.value = templateId;
+        
+        // Actualizar idioma si está vacío
+        const languageInput = document.getElementById('config_template_language');
+        if (languageInput && !languageInput.value) {
+            languageInput.value = templateLanguage || 'es';
+        }
+        
+        // Mostrar loading
+        if (container) container.innerHTML = '<p class="text-sm text-gray-500">Cargando variables del template...</p>';
+        
+        // Hacer petición AJAX
+        fetch(`{{ route('tools.template-variables') }}?template_id=${templateId}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                if (container) container.innerHTML = `<p class="text-sm text-red-500">Error: ${data.error}</p>`;
+                return;
+            }
+            
+            // Generar campos para cada variable
+            let html = '<h4 class="text-md font-semibold text-gray-700 mb-3">Variables del Template</h4>';
+            
+            if (data.variables && data.variables.length > 0) {
+                data.variables.forEach((variable) => {
+                    const varIndex = variable.index;
+                    
+                    html += `
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                ${variable.name} (${variable.placeholder})
+                            </label>
+                            <select
+                                name="template_var_${varIndex}"
+                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                onchange="updateTemplateParameters()"
+                            >
+                                <option value="">Selecciona una variable de contexto</option>
+                                ${contextVariables.map(v => `
+                                    <option value="${v.value}">${v.label} (${v.value})</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<p class="text-sm text-gray-500">Este template no tiene variables</p>';
+            }
+            
+            if (container) container.innerHTML = html;
+            updateTemplateParameters();
+        })
+        .catch(error => {
+            console.error('Error loading template variables:', error);
+            if (container) container.innerHTML = '<p class="text-sm text-red-500">Error al cargar las variables del template</p>';
+        });
+    };
+    
+    // Actualizar campo template_parameters con los valores seleccionados
+    window.updateTemplateParameters = function() {
+        const selects = document.querySelectorAll('select[name^="template_var_"]');
+        const params = {};
+        
+        selects.forEach(select => {
+            const varIndex = select.name.replace('template_var_', '');
+            if (select.value) {
+                params[varIndex] = select.value;
+            }
+        });
+        
+        // Convertir a array ordenado para template_parameters
+        const paramArray = [];
+        const sortedKeys = Object.keys(params).map(k => parseInt(k)).sort((a, b) => a - b);
+        sortedKeys.forEach(key => {
+            paramArray.push(params[key]);
+        });
+        
+        // Actualizar campo hidden o crear uno si no existe
+        let paramInput = document.getElementById('config_template_parameters');
+        if (!paramInput) {
+            paramInput = document.createElement('input');
+            paramInput.type = 'hidden';
+            paramInput.id = 'config_template_parameters';
+            paramInput.name = 'config[template_parameters]';
+            const container = document.getElementById('template-variables-container');
+            if (container) container.appendChild(paramInput);
+        }
+        
+        paramInput.value = JSON.stringify(paramArray);
+    };
 
     // Mostrar descripción de tool predefinida
     function updatePredefinedDescription() {

@@ -35,6 +35,7 @@ Route::middleware('auth')->group(function () {
         // Tools
         Route::resource('tools', \App\Http\Controllers\WhatsApp\ToolsController::class);
         Route::post('/tools/{tool}/toggle-active', [\App\Http\Controllers\WhatsApp\ToolsController::class, 'toggleActive'])->name('tools.toggle-active');
+        Route::get('/tools/template-variables', [\App\Http\Controllers\WhatsApp\ToolsController::class, 'getTemplateVariables'])->name('tools.template-variables');
 
             // Configuración
             Route::get('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'index'])->name('settings');

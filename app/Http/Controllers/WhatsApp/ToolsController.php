@@ -32,8 +32,13 @@ class ToolsController extends Controller
     public function create()
     {
         $predefinedTypes = WhatsAppTool::getPredefinedTypes();
+        $templates = \App\Models\Template::where('status', 'APPROVED')
+            ->orderBy('name')
+            ->get();
+        
         return view('whatsapp.tools.create', [
             'predefinedTypes' => $predefinedTypes,
+            'templates' => $templates,
         ]);
     }
 
@@ -96,16 +101,19 @@ class ToolsController extends Controller
             // Guardar configuración de campos predefinidos con los valores del formulario
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
+            $configValues = $request->input('config', []);
             
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
-                    // Los campos del formulario vienen como config_fieldName (ej: config_to, config_subject)
-                    $fieldValue = $request->input("config_{$fieldName}", '');
+                    // Los campos del formulario vienen como config[fieldName] (ej: config[to], config[subject])
+                    $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
                     
-                    // Si está vacío, intentar desde el array config (para compatibilidad)
-                    if (empty($fieldValue)) {
-                        $configValues = $request->input('config', []);
-                        $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    // Para template_parameters, puede venir como JSON string
+                    if ($fieldName === 'template_parameters' && is_string($fieldValue)) {
+                        $decoded = json_decode($fieldValue, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $fieldValue = $decoded;
+                        }
                     }
                     
                     $config[$fieldName] = [
@@ -117,6 +125,14 @@ class ToolsController extends Controller
                     ];
                 }
             }
+            
+            // Guardar template_id si existe (para tools de whatsapp)
+            if ($predefinedType === 'whatsapp' && isset($configValues['template_id'])) {
+                $config['template_id'] = [
+                    'value' => $configValues['template_id'],
+                ];
+            }
+            
             $validated['config'] = $config;
             
             // Establecer valores por defecto para campos no requeridos en custom
@@ -156,9 +172,66 @@ class ToolsController extends Controller
     public function edit(WhatsAppTool $tool)
     {
         $predefinedTypes = WhatsAppTool::getPredefinedTypes();
+        $templates = \App\Models\Template::where('status', 'APPROVED')
+            ->orderBy('name')
+            ->get();
+        
         return view('whatsapp.tools.edit', [
             'tool' => $tool,
             'predefinedTypes' => $predefinedTypes,
+            'templates' => $templates,
+        ]);
+    }
+    
+    /**
+     * Get template variables (API endpoint)
+     */
+    public function getTemplateVariables(Request $request)
+    {
+        $templateId = $request->input('template_id');
+        
+        if (!$templateId) {
+            return response()->json(['error' => 'Template ID requerido'], 400);
+        }
+        
+        $template = \App\Models\Template::find($templateId);
+        
+        if (!$template) {
+            return response()->json(['error' => 'Template no encontrado'], 404);
+        }
+        
+        $variables = [];
+        $components = $template->components ?? [];
+        
+        // Extraer variables del BODY
+        foreach ($components as $component) {
+            if ($component['type'] === 'BODY' && isset($component['text'])) {
+                // Buscar variables en el formato {{1}}, {{2}}, etc.
+                preg_match_all('/\{\{(\d+)\}\}/', $component['text'], $matches);
+                if (!empty($matches[1])) {
+                    foreach ($matches[1] as $varNum) {
+                        $variables[] = [
+                            'index' => (int)$varNum,
+                            'name' => "Variable {$varNum}",
+                            'placeholder' => "{{{$varNum}}}",
+                        ];
+                    }
+                }
+            }
+        }
+        
+        // Ordenar por índice
+        usort($variables, function($a, $b) {
+            return $a['index'] - $b['index'];
+        });
+        
+        return response()->json([
+            'template' => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'language' => $template->language,
+            ],
+            'variables' => $variables,
         ]);
     }
 
@@ -221,16 +294,19 @@ class ToolsController extends Controller
             // Guardar configuración de campos predefinidos con los valores del formulario
             $config = [];
             $predefinedConfig = $predefinedTypes[$predefinedType];
+            $configValues = $request->input('config', []);
             
             if (isset($predefinedConfig['config_fields'])) {
                 foreach ($predefinedConfig['config_fields'] as $fieldName => $fieldConfig) {
-                    // Los campos del formulario vienen como config_fieldName (ej: config_to, config_subject)
-                    $fieldValue = $request->input("config_{$fieldName}", '');
+                    // Los campos del formulario vienen como config[fieldName] (ej: config[to], config[subject])
+                    $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
                     
-                    // Si está vacío, intentar desde el array config (para compatibilidad)
-                    if (empty($fieldValue)) {
-                        $configValues = $request->input('config', []);
-                        $fieldValue = $configValues[$fieldName] ?? $fieldConfig['default'] ?? '';
+                    // Para template_parameters, puede venir como JSON string
+                    if ($fieldName === 'template_parameters' && is_string($fieldValue)) {
+                        $decoded = json_decode($fieldValue, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $fieldValue = $decoded;
+                        }
                     }
                     
                     $config[$fieldName] = [
@@ -242,6 +318,14 @@ class ToolsController extends Controller
                     ];
                 }
             }
+            
+            // Guardar template_id si existe (para tools de whatsapp)
+            if ($predefinedType === 'whatsapp' && isset($configValues['template_id'])) {
+                $config['template_id'] = [
+                    'value' => $configValues['template_id'],
+                ];
+            }
+            
             $validated['config'] = $config;
             
             // Establecer valores por defecto para campos no requeridos en custom
