@@ -62,6 +62,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/settings', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'index'])->name('settings');
         Route::post('/settings', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'update'])->name('settings.update');
         Route::post('/settings/test-connection', [\App\Http\Controllers\ElevenLabs\SettingsController::class, 'testConnection'])->name('settings.test-connection');
+
+        // Tools
+        // IMPORTANTE: Las rutas específicas deben ir ANTES del resource para evitar conflictos
+        Route::get('/tools/template-variables', [\App\Http\Controllers\ElevenLabs\ToolsController::class, 'getTemplateVariables'])->name('tools.template-variables');
+        Route::post('/tools/{tool}/toggle-active', [\App\Http\Controllers\ElevenLabs\ToolsController::class, 'toggleActive'])->name('tools.toggle-active');
+        Route::resource('tools', \App\Http\Controllers\ElevenLabs\ToolsController::class);
     });
 
     // Rutas de Logs (solo admin)
