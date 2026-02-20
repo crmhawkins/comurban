@@ -360,9 +360,6 @@
                     fieldValue = field.default || '';
                 }
                 
-                // Escapar HTML para evitar XSS
-                fieldValue = String(fieldValue).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                
                 // Si es un objeto JSON, convertirlo a string
                 try {
                     if (typeof fieldValue === 'object' && fieldValue !== null) {
@@ -371,6 +368,9 @@
                 } catch (e) {
                     // Si falla, usar el valor como string
                 }
+                
+                // Convertir a string
+                fieldValue = String(fieldValue || '');
                 
                 const isRequired = field.required ? 'required' : '';
                 const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
@@ -382,25 +382,42 @@
                         </label>
                 `;
 
-                // Si es template_parameters, usar textarea
-                if (key === 'template_parameters') {
+                // Si es template_parameters o body, usar textarea
+                if (key === 'template_parameters' || key === 'body') {
+                    const rows = key === 'template_parameters' ? 3 : 6;
+                    const placeholder = key === 'template_parameters' ? '["parámetro1", "parámetro2"]' : 'Escribe el cuerpo del mensaje aquí...';
+                    const fontClass = key === 'template_parameters' ? 'font-mono text-sm' : '';
+                    
+                    // Para textarea, escapar solo caracteres especiales HTML pero mantener saltos de línea
+                    const textareaValue = fieldValue
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    
                     fieldsHtml += `
                         <textarea
                             id="${fieldId}"
                             name="config_${key}"
-                            rows="3"
+                            rows="${rows}"
                             ${isRequired}
-                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
-                            placeholder='["parámetro1", "parámetro2"]'
-                        >${fieldValue}</textarea>
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 ${fontClass}"
+                            placeholder="${placeholder}"
+                        >${textareaValue}</textarea>
                     `;
                 } else {
+                    // Para input, escapar HTML completamente
+                    const inputValue = fieldValue
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                    
                     fieldsHtml += `
                         <input
                             type="text"
                             id="${fieldId}"
                             name="config_${key}"
-                            value="${fieldValue}"
+                            value="${inputValue}"
                             ${isRequired}
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             placeholder="${(field.variable || field.label).replace(/"/g, '&quot;')}"
