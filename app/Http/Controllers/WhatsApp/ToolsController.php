@@ -343,6 +343,18 @@ class ToolsController extends Controller
             'variables' => $variables,
         ]);
         
+        // Extraer el texto completo del template (BODY)
+        $templateText = '';
+        $components = $template->components ?? [];
+        if (is_array($components)) {
+            foreach ($components as $component) {
+                if (is_array($component) && strtoupper($component['type'] ?? '') === 'BODY' && isset($component['text'])) {
+                    $templateText = $component['text'];
+                    break;
+                }
+            }
+        }
+        
         // Para debugging, incluir información adicional en la respuesta
         $debugInfo = [
             'components_type' => gettype($template->components),
@@ -361,6 +373,7 @@ class ToolsController extends Controller
                 'id' => $template->id,
                 'name' => $template->name,
                 'language' => $template->language,
+                'text' => $templateText, // Texto completo del template
             ],
             'variables' => $variables,
             'debug' => $debugInfo, // Información de debugging

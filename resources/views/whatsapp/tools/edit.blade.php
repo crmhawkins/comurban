@@ -615,10 +615,31 @@
             // Generar campos para cada variable
             let html = '<h4 class="text-md font-semibold text-gray-700 mb-3">Variables del Template</h4>';
 
+            // Mostrar el texto completo del template si está disponible
+            if (data.template && data.template.text) {
+                // Escapar el texto para HTML y resaltar las variables
+                let templateText = data.template.text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\n/g, '<br>');
+
+                // Resaltar las variables {{1}}, {{2}}, etc. con un color
+                templateText = templateText.replace(/\{\{(\d+)\}\}/g, '<span class="px-1 py-0.5 bg-blue-100 text-blue-800 font-semibold rounded">{{$1}}</span>');
+
+                html += `
+                    <div class="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <p class="text-xs font-semibold text-gray-600 mb-2">Texto del Template:</p>
+                        <div class="text-sm text-gray-700 whitespace-pre-wrap">${templateText}</div>
+                    </div>
+                `;
+            }
+
             if (data.variables && data.variables.length > 0) {
                 // Obtener valores guardados
                 const savedParams = getSavedTemplateParameters();
 
+                html += '<div class="space-y-3">';
                 data.variables.forEach((variable) => {
                     const varIndex = variable.index;
                     const savedValue = savedParams[varIndex] || '';
@@ -641,6 +662,7 @@
                         </div>
                     `;
                 });
+                html += '</div>';
             } else {
                 // Mostrar información de debugging si está disponible
                 let debugInfo = '';
