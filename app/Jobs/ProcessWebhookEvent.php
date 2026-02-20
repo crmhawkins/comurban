@@ -592,34 +592,6 @@ class ProcessWebhookEvent implements ShouldQueue
                 'confidence' => $detectionResult['confidence'],
             ]);
 
-            // Check for duplicate incidents (same phone number, similar summary, within last 7 days)
-            $recentIncidents = Incident::where('phone_number', $contact->phone_number ?? $contact->wa_id)
-                ->where('source_type', 'whatsapp')
-                ->where('created_at', '>=', now()->subDays(7))
-                ->get();
-
-            $isDuplicate = false;
-            foreach ($recentIncidents as $existingIncident) {
-                // Check if incident type matches
-                if ($detectionResult['incident_type'] && 
-                    $existingIncident->incident_type === $detectionResult['incident_type']) {
-                    $isDuplicate = true;
-                    Log::info('Duplicate incident detected (same type)', [
-                        'existing_incident_id' => $existingIncident->id,
-                        'incident_type' => $detectionResult['incident_type'],
-                    ]);
-                    break;
-                }
-            }
-
-            if ($isDuplicate) {
-                Log::info('Skipping duplicate incident creation', [
-                    'message_id' => $message->id,
-                    'conversation_id' => $conversation->id,
-                ]);
-                return;
-            }
-
             // Generate incident summary
             $incidentSummary = $analysisService->generateIncidentSummary($message->body, $history);
 

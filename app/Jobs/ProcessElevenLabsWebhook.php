@@ -321,35 +321,6 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 $detectionResult['confidence'] = 0.8; // High confidence since call was already categorized
             }
 
-            // Check for duplicate incidents (same phone number, similar summary, within last 7 days)
-            $recentIncidents = Incident::where('phone_number', $phoneNumber)
-                ->where('source_type', 'call')
-                ->where('created_at', '>=', now()->subDays(7))
-                ->get();
-
-            $isDuplicate = false;
-            foreach ($recentIncidents as $existingIncident) {
-                // Check if incident type matches
-                if ($detectionResult['incident_type'] &&
-                    $existingIncident->incident_type === $detectionResult['incident_type']) {
-                    $isDuplicate = true;
-                    Log::info('Duplicate incident detected from call (same type)', [
-                        'existing_incident_id' => $existingIncident->id,
-                        'call_id' => $call->id,
-                        'incident_type' => $detectionResult['incident_type'],
-                    ]);
-                    break;
-                }
-            }
-
-            if ($isDuplicate) {
-                Log::info('Skipping duplicate incident creation from call', [
-                    'call_id' => $call->id,
-                    'phone_number' => $phoneNumber,
-                ]);
-                return;
-            }
-
             // Generate incident summary
             $incidentSummary = $analysisService->generateIncidentSummary($transcript);
 
