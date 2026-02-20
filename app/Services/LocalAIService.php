@@ -73,12 +73,19 @@ class LocalAIService
 
         // Check if AI wants to use a tool
         if ($result['success'] && isset($result['response'])) {
+            // Log the raw response to see what the AI is returning
+            Log::debug('Local AI: Raw response received', [
+                'response_length' => strlen($result['response']),
+                'response_preview' => substr($result['response'], 0, 500),
+            ]);
+            
             $toolUsage = $this->detectToolUsage($result['response']);
             
             if ($toolUsage) {
                 Log::info('Local AI: Tool usage detected', [
                     'tool_name' => $toolUsage['tool_name'],
                     'parameters' => $toolUsage['parameters'],
+                    'raw_response' => $result['response'],
                 ]);
 
                 // Execute the tool (context will be passed from generateResponse)
@@ -292,7 +299,13 @@ class LocalAIService
             $prompt .= "Ejemplo: [USE_TOOL:consultar_pedido:{\"pedido_id\":\"12345\"}]\n\n";
             
             foreach ($tools as $tool) {
-                $prompt .= "- {$tool->name}\n";
+                // Crear un shortcode normalizado (sin espacios, en minúsculas, sin caracteres especiales)
+                $shortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $tool->name));
+                $shortcode = preg_replace('/_+/', '_', $shortcode); // Reemplazar múltiples _ por uno solo
+                $shortcode = trim($shortcode, '_'); // Eliminar _ al inicio y final
+                
+                $prompt .= "- Nombre: {$tool->name}\n";
+                $prompt .= "  Shortcode para usar: {$shortcode}\n";
                 $prompt .= "  Descripción: {$tool->description}\n";
                 
                 // Si es una tool predefinida de email, añadir instrucción especial
@@ -305,8 +318,27 @@ class LocalAIService
                 }
                 $prompt .= "\n";
             }
-            $prompt .= "\n";
+            $prompt .= "IMPORTANTE: Usa el SHORTCODE (no el nombre completo) cuando invoques una herramienta.\n";
+            $prompt .= "Ejemplo: Si la herramienta se llama 'Incidencia de mantenimiento' y su shortcode es 'incidencia_de_mantenimiento', usa: [USE_TOOL:incidencia_de_mantenimiento:{}]\n\n";
         }
+        
+        // Log tools being passed to AI
+        Log::info('Tools available for AI', [
+            'tools_count' => $tools->count(),
+            'tools' => $tools->map(function($tool) {
+                $shortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $tool->name));
+                $shortcode = preg_replace('/_+/', '_', $shortcode);
+                $shortcode = trim($shortcode, '_');
+                return [
+                    'id' => $tool->id,
+                    'name' => $tool->name,
+                    'shortcode' => $shortcode,
+                    'type' => $tool->type,
+                    'predefined_type' => $tool->predefined_type,
+                    'active' => $tool->active,
+                ];
+            })->toArray(),
+        ]);
 
         // Add conversation history if available
         if (!empty($conversationHistory)) {
@@ -337,16 +369,52 @@ class LocalAIService
      */
     public function executeTool(string $toolName, array $parameters = [], ?array $conversationContext = null): array
     {
-        $tool = WhatsAppTool::where('name', $toolName)
+        // Normalizar el nombre de la tool (case-insensitive, sin espacios extra)
+        $normalizedToolName = trim($toolName);
+        
+        // Primero intentar búsqueda exacta
+        $tool = WhatsAppTool::where('name', $normalizedToolName)
             ->where('active', true)
             ->first();
+        
+        // Si no se encuentra, intentar búsqueda por shortcode normalizado
+        if (!$tool) {
+            $shortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $normalizedToolName));
+            $shortcode = preg_replace('/_+/', '_', $shortcode);
+            $shortcode = trim($shortcode, '_');
+            
+            // Buscar por shortcode normalizado comparando con el nombre normalizado de cada tool
+            $allTools = WhatsAppTool::active()->get();
+            foreach ($allTools as $t) {
+                $toolShortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $t->name));
+                $toolShortcode = preg_replace('/_+/', '_', $toolShortcode);
+                $toolShortcode = trim($toolShortcode, '_');
+                
+                if ($toolShortcode === $shortcode) {
+                    $tool = $t;
+                    break;
+                }
+            }
+        }
 
         if (!$tool) {
+            Log::warning('Tool not found', [
+                'requested_tool_name' => $toolName,
+                'normalized_name' => $normalizedToolName,
+            ]);
             return [
                 'success' => false,
                 'error' => "Tool '{$toolName}' no encontrada o inactiva",
             ];
         }
+        
+        Log::info('Tool found and executing', [
+            'requested_tool_name' => $toolName,
+            'tool_id' => $tool->id,
+            'tool_name' => $tool->name,
+            'tool_type' => $tool->type,
+            'predefined_type' => $tool->predefined_type,
+        ]);
 
         // Handle predefined tools
         if ($tool->type === 'predefined' && $tool->predefined_type) {
@@ -517,25 +585,47 @@ class LocalAIService
     public function detectToolUsage(string $aiResponse): ?array
     {
         // Pattern: [USE_TOOL:tool_name:json_params]
-        if (preg_match('/\[USE_TOOL:([^:]+):(.+?)\]/', $aiResponse, $matches)) {
-            $toolName = trim($matches[1]);
-            $paramsJson = trim($matches[2]);
+        // También acepta variaciones con espacios o sin parámetros
+        $patterns = [
+            '/\[USE_TOOL:\s*([^:]+?)\s*:\s*(.+?)\s*\]/s',  // Con parámetros
+            '/\[USE_TOOL:\s*([^:\]]+?)\s*\]/s',            // Sin parámetros
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $aiResponse, $matches)) {
+                $toolName = trim($matches[1]);
+                $paramsJson = isset($matches[2]) ? trim($matches[2]) : '{}';
 
-            $params = json_decode($paramsJson, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                // If JSON parsing fails, try to extract key-value pairs
-                $params = [];
-                if (preg_match_all('/(\w+):\s*["\']?([^"\',}]+)["\']?/', $paramsJson, $paramMatches)) {
-                    for ($i = 0; $i < count($paramMatches[1]); $i++) {
-                        $params[$paramMatches[1][$i]] = $paramMatches[2][$i];
+                $params = json_decode($paramsJson, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    // If JSON parsing fails, try to extract key-value pairs
+                    $params = [];
+                    if (preg_match_all('/(\w+):\s*["\']?([^"\',}]+)["\']?/', $paramsJson, $paramMatches)) {
+                        for ($i = 0; $i < count($paramMatches[1]); $i++) {
+                            $params[$paramMatches[1][$i]] = $paramMatches[2][$i];
+                        }
                     }
                 }
-            }
 
-            return [
-                'tool_name' => $toolName,
-                'parameters' => $params ?? [],
-            ];
+                Log::info('Tool usage pattern matched', [
+                    'pattern' => $pattern,
+                    'tool_name' => $toolName,
+                    'params_json' => $paramsJson,
+                    'params_parsed' => $params ?? [],
+                ]);
+
+                return [
+                    'tool_name' => $toolName,
+                    'parameters' => $params ?? [],
+                ];
+            }
+        }
+        
+        // Si no se encontró ningún patrón, log para debugging
+        if (stripos($aiResponse, 'USE_TOOL') !== false || stripos($aiResponse, 'tool') !== false) {
+            Log::debug('Possible tool usage detected but pattern not matched', [
+                'response_preview' => substr($aiResponse, 0, 500),
+            ]);
         }
 
         return null;
