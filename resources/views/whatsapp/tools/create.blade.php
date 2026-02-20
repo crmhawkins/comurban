@@ -294,16 +294,16 @@
     
     // Variables disponibles del contexto
     const contextVariables = [
-        { value: '{{phone}}', label: 'Teléfono' },
-        { value: '{{name}}', label: 'Nombre' },
-        { value: '{{date}}', label: 'Fecha' },
-        { value: '{{conversation_topic}}', label: 'Tema de conversación' },
-        { value: '{{conversation_summary}}', label: 'Resumen de conversación' },
-        { value: '{{incident_type}}', label: 'Tipo de incidencia' },
-        { value: '{{summary}}', label: 'Resumen' },
-        { value: '{{phone_number}}', label: 'Número de teléfono' },
-        { value: '{{contact_name}}', label: 'Nombre del contacto' },
-        { value: '{{incident_id}}', label: 'ID de incidencia' },
+        { value: '@{{phone}}', label: 'Teléfono' },
+        { value: '@{{name}}', label: 'Nombre' },
+        { value: '@{{date}}', label: 'Fecha' },
+        { value: '@{{conversation_topic}}', label: 'Tema de conversación' },
+        { value: '@{{conversation_summary}}', label: 'Resumen de conversación' },
+        { value: '@{{incident_type}}', label: 'Tipo de incidencia' },
+        { value: '@{{summary}}', label: 'Resumen' },
+        { value: '@{{phone_number}}', label: 'Número de teléfono' },
+        { value: '@{{contact_name}}', label: 'Nombre del contacto' },
+        { value: '@{{incident_id}}', label: 'ID de incidencia' },
     ];
 
     const emailAccountContainer = document.getElementById('email-account-container');
