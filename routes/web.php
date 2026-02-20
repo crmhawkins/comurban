@@ -32,6 +32,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/templates', [\App\Http\Controllers\WhatsApp\TemplatesController::class, 'store'])->name('templates.store');
         Route::post('/templates/sync', [\App\Http\Controllers\WhatsApp\TemplatesController::class, 'sync'])->name('templates.sync');
 
+        // Tools
+        Route::resource('tools', \App\Http\Controllers\WhatsApp\ToolsController::class);
+        Route::post('/tools/{tool}/toggle-active', [\App\Http\Controllers\WhatsApp\ToolsController::class, 'toggleActive'])->name('tools.toggle-active');
+
             // Configuración
             Route::get('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'index'])->name('settings');
             Route::post('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'update']);
@@ -77,5 +81,18 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [\App\Http\Controllers\IncidentsController::class, 'index'])->name('index');
         Route::get('/{id}', [\App\Http\Controllers\IncidentsController::class, 'show'])->name('show');
         Route::post('/{id}/status', [\App\Http\Controllers\IncidentsController::class, 'updateStatus'])->name('update-status');
+    });
+
+    // Rutas de Cuentas de Correo
+    Route::prefix('email-accounts')->name('email-accounts.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\EmailAccountsController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\EmailAccountsController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\EmailAccountsController::class, 'store'])->name('store');
+        Route::get('/{emailAccount}', [\App\Http\Controllers\EmailAccountsController::class, 'show'])->name('show');
+        Route::get('/{emailAccount}/edit', [\App\Http\Controllers\EmailAccountsController::class, 'edit'])->name('edit');
+        Route::put('/{emailAccount}', [\App\Http\Controllers\EmailAccountsController::class, 'update'])->name('update');
+        Route::delete('/{emailAccount}', [\App\Http\Controllers\EmailAccountsController::class, 'destroy'])->name('destroy');
+        Route::post('/{emailAccount}/toggle-active', [\App\Http\Controllers\EmailAccountsController::class, 'toggleActive'])->name('toggle-active');
+        Route::post('/{emailAccount}/test', [\App\Http\Controllers\EmailAccountsController::class, 'test'])->name('test');
     });
 });

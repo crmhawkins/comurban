@@ -5,6 +5,8 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Helpers\ConfigHelper;
+use App\Models\WhatsAppTool;
+use App\Services\PredefinedToolService;
 
 class LocalAIService
 {
@@ -22,6 +24,7 @@ class LocalAIService
     /**
      * Generate AI response based on user message and conversation context
      * Uses fallback: tries gpt-oss:120b-cloud first, then qwen3:latest if it fails
+     * Supports tool usage: if AI requests a tool, executes it and generates final response
      */
     public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null): array
     {
@@ -56,6 +59,48 @@ class LocalAIService
                 Log::info('Local AI: Fallback model succeeded', [
                     'fallback_model' => $fallbackModel,
                 ]);
+            }
+        }
+
+        // Check if AI wants to use a tool
+        if ($result['success'] && isset($result['response'])) {
+            $toolUsage = $this->detectToolUsage($result['response']);
+            
+            if ($toolUsage) {
+                Log::info('Local AI: Tool usage detected', [
+                    'tool_name' => $toolUsage['tool_name'],
+                    'parameters' => $toolUsage['parameters'],
+                ]);
+
+                // Execute the tool
+                $toolResult = $this->executeTool($toolUsage['tool_name'], $toolUsage['parameters']);
+
+                if ($toolResult['success']) {
+                    // Build a new prompt with tool result and ask for final response
+                    $toolResultText = is_array($toolResult['data']) 
+                        ? json_encode($toolResult['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+                        : $toolResult['data'];
+
+                    $finalPrompt = $prompt . "\n\n";
+                    $finalPrompt .= "RESULTADO DE LA HERRAMIENTA '{$toolUsage['tool_name']}':\n";
+                    $finalPrompt .= $toolResultText . "\n\n";
+                    $finalPrompt .= "Ahora genera una respuesta final para el cliente basándote en este resultado. No uses más herramientas, solo responde directamente al cliente.";
+
+                    // Generate final response with tool result
+                    $finalResult = $this->tryModel($finalPrompt, $result['model_used'] ?? $primaryModel, $userMessage, $conversationHistory, $systemPrompt);
+
+                    if ($finalResult['success']) {
+                        $finalResult['tool_used'] = $toolUsage['tool_name'];
+                        $finalResult['tool_result'] = $toolResult['data'];
+                        return $finalResult;
+                    }
+                } else {
+                    // Tool execution failed, but we can still return the original response
+                    Log::warning('Local AI: Tool execution failed, returning original response', [
+                        'tool_name' => $toolUsage['tool_name'],
+                        'error' => $toolResult['error'],
+                    ]);
+                }
             }
         }
 
@@ -197,6 +242,25 @@ class LocalAIService
             $prompt .= $systemPrompt . "\n\n";
         }
 
+        // Add available tools information
+        $tools = WhatsAppTool::active()->ordered()->get();
+        if ($tools->count() > 0) {
+            $prompt .= "HERRAMIENTAS DISPONIBLES:\n";
+            $prompt .= "Tienes acceso a las siguientes herramientas que puedes usar cuando sea necesario.\n";
+            $prompt .= "Para usar una herramienta, responde con el formato: [USE_TOOL:nombre_tool:parametros_json]\n";
+            $prompt .= "Ejemplo: [USE_TOOL:consultar_pedido:{\"pedido_id\":\"12345\"}]\n\n";
+            
+            foreach ($tools as $tool) {
+                $prompt .= "- {$tool->name} ({$tool->method} {$tool->endpoint})\n";
+                $prompt .= "  Descripción: {$tool->description}\n";
+                if ($tool->method === 'POST' && $tool->json_format) {
+                    $prompt .= "  Formato esperado: {$tool->json_format}\n";
+                }
+                $prompt .= "\n";
+            }
+            $prompt .= "\n";
+        }
+
         // Add conversation history if available
         if (!empty($conversationHistory)) {
             $prompt .= "Historial de la conversación:\n";
@@ -215,5 +279,179 @@ class LocalAIService
         $prompt .= "Asistente:";
 
         return $prompt;
+    }
+
+    /**
+     * Execute a tool by name
+     */
+    public function executeTool(string $toolName, array $parameters = []): array
+    {
+        $tool = WhatsAppTool::where('name', $toolName)
+            ->where('active', true)
+            ->first();
+
+        if (!$tool) {
+            return [
+                'success' => false,
+                'error' => "Tool '{$toolName}' no encontrada o inactiva",
+            ];
+        }
+
+        // Handle predefined tools
+        if ($tool->type === 'predefined' && $tool->predefined_type) {
+            try {
+                $predefinedService = new PredefinedToolService();
+                $result = $predefinedService->execute(
+                    $tool->predefined_type,
+                    $parameters,
+                    $tool->config,
+                    $tool->email_account_id
+                );
+
+                Log::info('Predefined tool executed', [
+                    'tool_name' => $toolName,
+                    'tool_id' => $tool->id,
+                    'predefined_type' => $tool->predefined_type,
+                    'email_account_id' => $tool->email_account_id,
+                    'success' => $result['success'],
+                ]);
+
+                return $result;
+            } catch (\Exception $e) {
+                Log::error('Predefined tool execution exception', [
+                    'tool_name' => $toolName,
+                    'predefined_type' => $tool->predefined_type,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        // Handle custom tools (endpoint-based)
+        try {
+            $url = $tool->endpoint;
+            $headers = $tool->headers ?? [];
+
+            // Replace variables in headers
+            foreach ($headers as $key => $value) {
+                $headers[$key] = $this->replaceVariables($value, $parameters);
+            }
+
+            // Replace variables in URL
+            $url = $this->replaceVariables($url, $parameters);
+
+            // Build request
+            $request = Http::withoutVerifying()
+                ->timeout($tool->timeout);
+
+            // Add headers
+            if (!empty($headers)) {
+                $request = $request->withHeaders($headers);
+            }
+
+            // Execute request
+            if ($tool->method === 'GET') {
+                $response = $request->get($url, $parameters);
+            } else {
+                // POST: build JSON body from json_format
+                $body = [];
+                if ($tool->json_format) {
+                    $bodyJson = $this->replaceVariables($tool->json_format, $parameters);
+                    $body = json_decode($bodyJson, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        // If JSON parsing fails, use the replaced string as-is
+                        $body = $bodyJson;
+                    }
+                } else {
+                    $body = $parameters;
+                }
+                $response = $request->post($url, $body);
+            }
+
+            if ($response->successful()) {
+                $data = $response->json() ?? $response->body();
+
+                Log::info('Tool executed successfully', [
+                    'tool_name' => $toolName,
+                    'tool_id' => $tool->id,
+                    'status' => $response->status(),
+                ]);
+
+                return [
+                    'success' => true,
+                    'data' => $data,
+                    'tool_name' => $toolName,
+                ];
+            }
+
+            Log::error('Tool execution failed', [
+                'tool_name' => $toolName,
+                'tool_id' => $tool->id,
+                'status' => $response->status(),
+                'error' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Error ejecutando la tool: ' . ($response->body() ?? 'Unknown error'),
+                'status' => $response->status(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Tool execution exception', [
+                'tool_name' => $toolName,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Replace variables in a string with values from parameters
+     */
+    protected function replaceVariables(string $text, array $parameters): string
+    {
+        foreach ($parameters as $key => $value) {
+            $text = str_replace("{{{$key}}}", $value, $text);
+            $text = str_replace("{{$key}}", $value, $text);
+        }
+        return $text;
+    }
+
+    /**
+     * Detect if AI response contains a tool usage request
+     */
+    public function detectToolUsage(string $aiResponse): ?array
+    {
+        // Pattern: [USE_TOOL:tool_name:json_params]
+        if (preg_match('/\[USE_TOOL:([^:]+):(.+?)\]/', $aiResponse, $matches)) {
+            $toolName = trim($matches[1]);
+            $paramsJson = trim($matches[2]);
+
+            $params = json_decode($paramsJson, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                // If JSON parsing fails, try to extract key-value pairs
+                $params = [];
+                if (preg_match_all('/(\w+):\s*["\']?([^"\',}]+)["\']?/', $paramsJson, $paramMatches)) {
+                    for ($i = 0; $i < count($paramMatches[1]); $i++) {
+                        $params[$paramMatches[1][$i]] = $paramMatches[2][$i];
+                    }
+                }
+            }
+
+            return [
+                'tool_name' => $toolName,
+                'parameters' => $params ?? [],
+            ];
+        }
+
+        return null;
     }
 }
