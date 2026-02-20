@@ -501,7 +501,7 @@
         if (container) container.innerHTML = '<p class="text-sm text-gray-500">Cargando variables del template...</p>';
         
         // Hacer petición AJAX
-        fetch(`{{ route('tools.template-variables') }}?template_id=${templateId}`, {
+        fetch(`{{ route('whatsapp.tools.template-variables') }}?template_id=${templateId}`, {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json',
