@@ -85,7 +85,7 @@ class ProcessWebhookEvent implements ShouldQueue
                                 'messages_count' => count($value['messages']),
                                 'contacts_count' => count($contacts),
                             ]);
-                            
+
                             foreach ($value['messages'] as $messageIndex => $messageData) {
                                 Log::debug('Processing message', [
                                     'message_index' => $messageIndex,
@@ -93,7 +93,7 @@ class ProcessWebhookEvent implements ShouldQueue
                                     'from' => $messageData['from'] ?? null,
                                     'type' => $messageData['type'] ?? null,
                                 ]);
-                                
+
                                 try {
                                     $this->processIncomingMessage($messageData, $contacts, $value['metadata'] ?? [], $whatsappService);
                                     Log::info('Message processed successfully', [
@@ -113,7 +113,7 @@ class ProcessWebhookEvent implements ShouldQueue
                             Log::info('Processing message status updates', [
                                 'statuses_count' => count($value['statuses']),
                             ]);
-                            
+
                             foreach ($value['statuses'] as $statusData) {
                                 $this->processMessageStatus($statusData);
                             }
@@ -152,7 +152,7 @@ class ProcessWebhookEvent implements ShouldQueue
         DB::transaction(function () use ($messageData, $contacts, $metadata, $whatsappService) {
             // Extract phone number and WhatsApp ID from message
             $from = $messageData['from'] ?? null;
-            
+
             if (!$from) {
                 Log::warning('Message missing from field', ['message_data' => $messageData]);
                 throw new \Exception('Message missing required "from" field');
@@ -171,7 +171,7 @@ class ProcessWebhookEvent implements ShouldQueue
 
             // STEP 1: Get or create contact
             $contactName = $contactInfo['profile']['name'] ?? $from;
-            
+
             $contact = Contact::firstOrCreate(
                 ['wa_id' => $waId],
                 [
@@ -202,7 +202,7 @@ class ProcessWebhookEvent implements ShouldQueue
             // STEP 3: Extract message data and create message
             $type = $messageData['type'] ?? 'text';
             $waMessageId = $messageData['id'] ?? null;
-            
+
             if (!$waMessageId) {
                 Log::warning('Message missing ID field', ['message_data' => $messageData]);
                 throw new \Exception('Message missing required "id" field');
@@ -301,7 +301,7 @@ class ProcessWebhookEvent implements ShouldQueue
                     ]);
                     return;
                 }
-                
+
                 // Generate AI response asynchronously
                 try {
                     $this->generateAIResponse($conversation, $message, $whatsappService);
@@ -434,8 +434,8 @@ class ProcessWebhookEvent implements ShouldQueue
                 // If the last message (which is not the current incoming message) is from AI,
                 // and it was created very recently (within last 5 seconds), skip responding
                 // This handles the case where the webhook processes the same message multiple times
-                if ($lastMessage->direction === 'outbound' && 
-                    isset($lastMessage->metadata['ai_generated']) && 
+                if ($lastMessage->direction === 'outbound' &&
+                    isset($lastMessage->metadata['ai_generated']) &&
                     $lastMessage->metadata['ai_generated'] === true &&
                     $lastMessage->created_at->diffInSeconds(now()) < 5) {
                     Log::info('Skipping AI response: last message is from AI and was created very recently', [
@@ -450,7 +450,7 @@ class ProcessWebhookEvent implements ShouldQueue
 
             $aiService = new LocalAIService();
             $contact = $conversation->contact;
-            
+
             // Get conversation history (last 10 messages for context)
             $history = $conversation->messages()
                 ->orderBy('created_at', 'desc')
@@ -498,11 +498,11 @@ class ProcessWebhookEvent implements ShouldQueue
             }
 
             $aiResponse = trim($aiResult['response']);
-            
+
             // Remove any tool usage commands from the response
             $aiResponse = preg_replace('/\[USE_TOOL:[^\]]+\]/', '', $aiResponse);
             $aiResponse = trim($aiResponse);
-            
+
             if (empty($aiResponse)) {
                 Log::warning('AI response is empty', [
                     'conversation_id' => $conversation->id,
@@ -579,7 +579,7 @@ class ProcessWebhookEvent implements ShouldQueue
     {
         try {
             $analysisService = new IncidentAnalysisService();
-            
+
             // Get conversation history for context (last 10 messages)
             $history = $conversation->messages()
                 ->orderBy('created_at', 'desc')
@@ -664,14 +664,16 @@ class ProcessWebhookEvent implements ShouldQueue
     {
         $context = [
             'phone' => $contact->phone_number ?? $contact->wa_id ?? '',
+            'phone_number' => $contact->phone_number ?? $contact->wa_id ?? '', // Alias para compatibilidad
             'name' => $contact->name ?? $contact->phone_number ?? 'Cliente',
+            'contact_name' => $contact->name ?? $contact->phone_number ?? 'Cliente', // Alias para compatibilidad
             'date' => now()->format('d/m/Y H:i'),
         ];
 
         // Get conversation topic and summary using AI if available
         try {
             $analysisService = new \App\Services\IncidentAnalysisService();
-            
+
             // Get conversation text for analysis
             $conversationText = '';
             foreach ($history as $msg) {
@@ -708,6 +710,24 @@ class ProcessWebhookEvent implements ShouldQueue
             ]);
             $context['conversation_topic'] = 'Consulta general';
             $context['conversation_summary'] = 'Sin resumen disponible';
+        }
+
+        // Add incident information if there's a recent incident related to this conversation
+        try {
+            $recentIncident = \App\Models\Incident::where('conversation_id', $conversation->id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($recentIncident) {
+                $context['incident_id'] = (string)$recentIncident->id;
+                $context['incident_type'] = $recentIncident->type ?? '';
+                $context['summary'] = $recentIncident->summary ?? '';
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error adding incident info to context', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return $context;

@@ -262,6 +262,7 @@ class PredefinedToolService
     /**
      * Replace variables in a string
      * Supports: {{variable}}, @{{variable}}, {variable}
+     * Also extracts variable names from within braces
      */
     protected function replaceVariables(string $text, array $context): string
     {
@@ -273,6 +274,7 @@ class PredefinedToolService
             return $text;
         }
 
+        // First, replace direct variable references (e.g., {{key}})
         foreach ($context as $key => $value) {
             if ($value === null) {
                 continue;
@@ -292,6 +294,36 @@ class PredefinedToolService
             
             foreach ($patterns as $pattern) {
                 $text = str_replace($pattern, $value, $text);
+            }
+        }
+        
+        // Second, extract and replace variables from within braces (e.g., {{variable_name}})
+        // This handles cases where the variable name is stored with braces in the config
+        preg_match_all('/\{\{([^}]+)\}\}/', $text, $matches);
+        if (!empty($matches[1])) {
+            foreach ($matches[1] as $varName) {
+                $varName = trim($varName);
+                // Remove @ if present
+                $varName = ltrim($varName, '@');
+                
+                // Check if this variable exists in context
+                if (isset($context[$varName]) && $context[$varName] !== null) {
+                    $varValue = $context[$varName];
+                    if (!is_string($varValue) && !is_numeric($varValue)) {
+                        $varValue = (string) $varValue;
+                    }
+                    
+                    // Replace all variations of this variable
+                    $patterns = [
+                        "@{{$varName}}",
+                        "{{{$varName}}}",
+                        "{{$varName}}",
+                    ];
+                    
+                    foreach ($patterns as $pattern) {
+                        $text = str_replace($pattern, $varValue, $text);
+                    }
+                }
             }
         }
         
