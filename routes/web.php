@@ -33,9 +33,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/templates/sync', [\App\Http\Controllers\WhatsApp\TemplatesController::class, 'sync'])->name('templates.sync');
 
         // Tools
-        Route::resource('tools', \App\Http\Controllers\WhatsApp\ToolsController::class);
-        Route::post('/tools/{tool}/toggle-active', [\App\Http\Controllers\WhatsApp\ToolsController::class, 'toggleActive'])->name('tools.toggle-active');
+        // IMPORTANTE: Las rutas específicas deben ir ANTES del resource para evitar conflictos
         Route::get('/tools/template-variables', [\App\Http\Controllers\WhatsApp\ToolsController::class, 'getTemplateVariables'])->name('tools.template-variables');
+        Route::post('/tools/{tool}/toggle-active', [\App\Http\Controllers\WhatsApp\ToolsController::class, 'toggleActive'])->name('tools.toggle-active');
+        Route::resource('tools', \App\Http\Controllers\WhatsApp\ToolsController::class);
 
             // Configuración
             Route::get('/settings', [\App\Http\Controllers\WhatsApp\SettingsController::class, 'index'])->name('settings');
