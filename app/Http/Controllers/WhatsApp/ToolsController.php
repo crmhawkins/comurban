@@ -203,20 +203,113 @@ class ToolsController extends Controller
         $variables = [];
         $components = $template->components ?? [];
         
+        // Log para debugging
+        \Log::info('Extracting template variables', [
+            'template_id' => $template->id,
+            'template_name' => $template->name,
+            'components_count' => is_array($components) ? count($components) : 0,
+            'components_type' => gettype($components),
+            'components' => $components,
+        ]);
+        
+        // Si components no es un array, intentar decodificarlo
+        if (!is_array($components)) {
+            if (is_string($components)) {
+                $decoded = json_decode($components, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $components = $decoded;
+                }
+            }
+        }
+        
         // Extraer variables del BODY
-        foreach ($components as $component) {
-            if ($component['type'] === 'BODY' && isset($component['text'])) {
-                // Buscar variables en el formato {{1}}, {{2}}, etc.
-                preg_match_all('/\{\{(\d+)\}\}/', $component['text'], $matches);
-                if (!empty($matches[1])) {
-                    foreach ($matches[1] as $varNum) {
-                        $variables[] = [
-                            'index' => (int)$varNum,
-                            'name' => "Variable {$varNum}",
-                            'placeholder' => "{{{$varNum}}}",
-                        ];
+        if (is_array($components)) {
+            foreach ($components as $component) {
+                // Verificar que sea un array y tenga el tipo correcto
+                if (!is_array($component)) {
+                    continue;
+                }
+                
+                $componentType = $component['type'] ?? null;
+                $componentText = $component['text'] ?? null;
+                
+                \Log::debug('Processing component', [
+                    'type' => $componentType,
+                    'has_text' => isset($component['text']),
+                    'text_preview' => $componentText ? substr($componentText, 0, 200) : null,
+                    'component_keys' => array_keys($component),
+                ]);
+                
+                // Buscar en BODY (puede venir como 'BODY' o 'body')
+                if (strtoupper($componentType) === 'BODY' && $componentText) {
+                    // Buscar variables en el formato {{1}}, {{2}}, etc.
+                    // También buscar {{ 1 }}, {{1}}, {1} por si acaso
+                    // Usar múltiples patrones para asegurar que encontramos todas las variaciones
+                    $patterns = [
+                        '/\{\{\s*(\d+)\s*\}\}/',  // {{1}}, {{ 1 }}
+                        '/\{\s*(\d+)\s*\}/',      // {1}, { 1 }
+                    ];
+                    
+                    $allMatches = [];
+                    foreach ($patterns as $pattern) {
+                        preg_match_all($pattern, $componentText, $matches);
+                        if (!empty($matches[1])) {
+                            $allMatches = array_merge($allMatches, $matches[1]);
+                        }
+                    }
+                    
+                    \Log::debug('BODY text variable search', [
+                        'text' => $componentText,
+                        'text_length' => strlen($componentText),
+                        'all_matches' => $allMatches,
+                        'matches_count' => count($allMatches),
+                    ]);
+                    
+                    if (!empty($allMatches)) {
+                        // Eliminar duplicados y ordenar
+                        $uniqueVars = array_unique(array_map('intval', $allMatches));
+                        sort($uniqueVars);
+                        
+                        foreach ($uniqueVars as $varNum) {
+                            $variables[] = [
+                                'index' => (int)$varNum,
+                                'name' => "Variable {$varNum}",
+                                'placeholder' => "{{{$varNum}}}",
+                            ];
+                        }
                     }
                 }
+            }
+        } else {
+            \Log::warning('Components is not an array', [
+                'components_type' => gettype($components),
+                'components' => $components,
+            ]);
+        }
+        
+        // Si no encontramos variables, intentar buscar directamente en el JSON del template
+        if (empty($variables)) {
+            \Log::info('No variables found in components, trying direct search in template JSON');
+            
+            // Convertir todo el template a JSON string y buscar variables
+            $templateJson = json_encode($template->toArray());
+            preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $templateJson, $matches);
+            
+            if (!empty($matches[1])) {
+                $uniqueVars = array_unique(array_map('intval', $matches[1]));
+                sort($uniqueVars);
+                
+                foreach ($uniqueVars as $varNum) {
+                    $variables[] = [
+                        'index' => (int)$varNum,
+                        'name' => "Variable {$varNum}",
+                        'placeholder' => "{{{$varNum}}}",
+                    ];
+                }
+                
+                \Log::info('Variables found in template JSON', [
+                    'variables' => $variables,
+                ]);
             }
         }
         
@@ -224,6 +317,13 @@ class ToolsController extends Controller
         usort($variables, function($a, $b) {
             return $a['index'] - $b['index'];
         });
+        
+        \Log::info('Template variables extracted', [
+            'template_id' => $template->id,
+            'template_name' => $template->name,
+            'variables_count' => count($variables),
+            'variables' => $variables,
+        ]);
         
         return response()->json([
             'template' => [
