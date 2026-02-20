@@ -291,8 +291,14 @@
     const jsonFormatContainer = document.getElementById('json-format-container');
     const emailAccountContainer = document.getElementById('email-account-container');
     const headersContainer = document.getElementById('headers-container');
+    const predefinedConfigContainer = document.getElementById('predefined-config-container');
+    const predefinedConfigFields = document.getElementById('predefined-config-fields');
 
     const predefinedTypes = @json($predefinedTypes);
+    
+    // Valores guardados del tool (desde la base de datos)
+    const savedConfig = @json($tool->config ?? []);
+    const oldConfigValues = @json(old('config', []));
 
     // Toggle entre custom y predefined
     function toggleType() {
@@ -302,9 +308,11 @@
             jsonFormatContainer.style.display = 'none';
             headersContainer.style.display = 'none';
             // Hacer opcionales los campos custom
-            document.getElementById('method').removeAttribute('required');
-            document.getElementById('endpoint').removeAttribute('required');
-            document.getElementById('predefined_type').setAttribute('required', 'required');
+            const methodField = document.getElementById('method');
+            const endpointField = document.getElementById('endpoint');
+            if (methodField) methodField.removeAttribute('required');
+            if (endpointField) endpointField.removeAttribute('required');
+            if (predefinedTypeSelect) predefinedTypeSelect.setAttribute('required', 'required');
             updateEmailAccountVisibility();
             generateConfigFields();
         } else {
@@ -312,33 +320,63 @@
             customEndpointContainer.style.display = 'block';
             headersContainer.style.display = 'block';
             emailAccountContainer.style.display = 'none';
-            predefinedConfigContainer.style.display = 'none';
+            if (predefinedConfigContainer) predefinedConfigContainer.style.display = 'none';
             // Hacer requeridos los campos custom
-            document.getElementById('method').setAttribute('required', 'required');
-            document.getElementById('endpoint').setAttribute('required', 'required');
-            document.getElementById('predefined_type').removeAttribute('required');
+            const methodField = document.getElementById('method');
+            const endpointField = document.getElementById('endpoint');
+            if (methodField) methodField.setAttribute('required', 'required');
+            if (endpointField) endpointField.setAttribute('required', 'required');
+            if (predefinedTypeSelect) predefinedTypeSelect.removeAttribute('required');
             toggleJsonFormat();
         }
     }
 
     // Generar campos de configuración dinámicamente
     function generateConfigFields() {
-        const selectedType = document.getElementById('predefined_type').value;
+        if (!predefinedTypeSelect || !predefinedConfigFields || !predefinedConfigContainer) {
+            return;
+        }
+        
+        const selectedType = predefinedTypeSelect.value;
         predefinedConfigFields.innerHTML = '';
+        predefinedConfigContainer.style.display = 'none';
 
         if (selectedType && predefinedTypes[selectedType] && predefinedTypes[selectedType].config_fields) {
             const tool = predefinedTypes[selectedType];
             const configFields = tool.config_fields;
 
+            let fieldsHtml = '<h3 class="text-lg font-semibold text-gray-800 mb-4">Configuración de la Tool</h3>';
+            
             for (const [key, field] of Object.entries(configFields)) {
                 const fieldId = `config_${key}`;
-                // Usar valor guardado o valor por defecto
-                const fieldValue = savedConfig[key]?.value || field.default || '';
+                
+                // Obtener valor: primero old input, luego saved config, luego default
+                let fieldValue = '';
+                if (oldConfigValues && oldConfigValues[key] !== undefined) {
+                    fieldValue = oldConfigValues[key];
+                } else if (savedConfig && savedConfig[key] && savedConfig[key].value !== undefined) {
+                    fieldValue = savedConfig[key].value;
+                } else {
+                    fieldValue = field.default || '';
+                }
+                
+                // Escapar HTML para evitar XSS
+                fieldValue = String(fieldValue).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                
+                // Si es un objeto JSON, convertirlo a string
+                try {
+                    if (typeof fieldValue === 'object' && fieldValue !== null) {
+                        fieldValue = JSON.stringify(fieldValue);
+                    }
+                } catch (e) {
+                    // Si falla, usar el valor como string
+                }
+                
                 const isRequired = field.required ? 'required' : '';
                 const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
 
-                let fieldHtml = `
-                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                fieldsHtml += `
+                    <div class="mb-4">
                         <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
                             ${field.label} ${requiredStar}
                         </label>
@@ -346,10 +384,10 @@
 
                 // Si es template_parameters, usar textarea
                 if (key === 'template_parameters') {
-                    fieldHtml += `
+                    fieldsHtml += `
                         <textarea
                             id="${fieldId}"
-                            name="config[${key}]"
+                            name="config_${key}"
                             rows="3"
                             ${isRequired}
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
@@ -357,32 +395,27 @@
                         >${fieldValue}</textarea>
                     `;
                 } else {
-                    fieldHtml += `
+                    fieldsHtml += `
                         <input
                             type="text"
                             id="${fieldId}"
-                            name="config[${key}]"
+                            name="config_${key}"
                             value="${fieldValue}"
                             ${isRequired}
                             class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            placeholder="${field.label}"
+                            placeholder="${(field.variable || field.label).replace(/"/g, '&quot;')}"
                         />
                     `;
                 }
 
-                fieldHtml += `
-                        <p class="mt-1 text-xs text-gray-500">
-                            Puedes usar variables: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}
-                        </p>
+                fieldsHtml += `
+                        <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
                     </div>
                 `;
-
-                predefinedConfigFields.innerHTML += fieldHtml;
             }
 
+            predefinedConfigFields.innerHTML = fieldsHtml;
             predefinedConfigContainer.style.display = 'block';
-        } else {
-            predefinedConfigContainer.style.display = 'none';
         }
     }
 
@@ -425,19 +458,36 @@
         }
     }
 
-    typeSelect.addEventListener('change', toggleType);
-    predefinedTypeSelect.addEventListener('change', function() {
+    // Event listeners
+    if (typeSelect) {
+        typeSelect.addEventListener('change', toggleType);
+    }
+    if (predefinedTypeSelect) {
+        predefinedTypeSelect.addEventListener('change', function() {
+            updatePredefinedDescription();
+            updateEmailAccountVisibility();
+            generateConfigFields();
+        });
+    }
+    if (methodSelect) {
+        methodSelect.addEventListener('change', toggleJsonFormat);
+    }
+    
+    // Función de inicialización
+    function initializeForm() {
+        toggleType();
         updatePredefinedDescription();
         updateEmailAccountVisibility();
         generateConfigFields();
-    });
-    methodSelect.addEventListener('change', toggleJsonFormat);
+        toggleJsonFormat();
+    }
     
     // Ejecutar al cargar la página
-    toggleType();
-    updatePredefinedDescription();
-    updateEmailAccountVisibility();
-    generateConfigFields();
-    toggleJsonFormat();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeForm);
+    } else {
+        // DOM ya está listo, ejecutar inmediatamente
+        initializeForm();
+    }
 </script>
 @endsection
