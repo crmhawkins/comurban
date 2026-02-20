@@ -13,6 +13,7 @@ class LocalAIService
     protected ?string $url;
     protected ?string $apiKey;
     protected string $model;
+    protected ?array $conversationContext = null;
 
     public function __construct()
     {
@@ -25,8 +26,13 @@ class LocalAIService
      * Generate AI response based on user message and conversation context
      * Uses fallback: tries gpt-oss:120b-cloud first, then qwen3:latest if it fails
      * Supports tool usage: if AI requests a tool, executes it and generates final response
+     * @param string $userMessage
+     * @param array $conversationHistory
+     * @param string|null $systemPrompt
+     * @param array|null $conversationContext Optional context with: phone, name, date, conversation_topic, conversation_summary
+     * @return array
      */
-    public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null): array
+    public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null, ?array $conversationContext = null): array
     {
         if (!$this->url || !$this->apiKey) {
             return [
@@ -34,6 +40,9 @@ class LocalAIService
                 'error' => 'Local AI service not configured',
             ];
         }
+
+        // Store conversation context for tool execution
+        $this->conversationContext = $conversationContext;
 
         // Build the prompt once
         $prompt = $this->buildPrompt($userMessage, $conversationHistory, $systemPrompt);
@@ -72,8 +81,8 @@ class LocalAIService
                     'parameters' => $toolUsage['parameters'],
                 ]);
 
-                // Execute the tool
-                $toolResult = $this->executeTool($toolUsage['tool_name'], $toolUsage['parameters']);
+                // Execute the tool (context will be passed from generateResponse)
+                $toolResult = $this->executeTool($toolUsage['tool_name'], $toolUsage['parameters'], $this->conversationContext ?? null);
 
                 if ($toolResult['success']) {
                     // Build a new prompt with tool result and ask for final response
@@ -283,8 +292,12 @@ class LocalAIService
 
     /**
      * Execute a tool by name
+     * @param string $toolName
+     * @param array $parameters
+     * @param array|null $conversationContext Optional context with: phone, name, date, conversation_topic, conversation_summary
+     * @return array
      */
-    public function executeTool(string $toolName, array $parameters = []): array
+    public function executeTool(string $toolName, array $parameters = [], ?array $conversationContext = null): array
     {
         $tool = WhatsAppTool::where('name', $toolName)
             ->where('active', true)
@@ -301,9 +314,12 @@ class LocalAIService
         if ($tool->type === 'predefined' && $tool->predefined_type) {
             try {
                 $predefinedService = new PredefinedToolService();
+                // Expand parameters with conversation context variables
+                $expandedParameters = $this->expandParametersWithContext($parameters, $conversationContext);
+                
                 $result = $predefinedService->execute(
                     $tool->predefined_type,
-                    $parameters,
+                    $expandedParameters,
                     $tool->config,
                     $tool->email_account_id
                 );
@@ -336,13 +352,16 @@ class LocalAIService
             $url = $tool->endpoint;
             $headers = $tool->headers ?? [];
 
+            // Merge conversation context with parameters for variable replacement
+            $allVariables = array_merge($conversationContext ?? [], $parameters);
+
             // Replace variables in headers
             foreach ($headers as $key => $value) {
-                $headers[$key] = $this->replaceVariables($value, $parameters);
+                $headers[$key] = $this->replaceVariables($value, $allVariables);
             }
 
             // Replace variables in URL
-            $url = $this->replaceVariables($url, $parameters);
+            $url = $this->replaceVariables($url, $allVariables);
 
             // Build request
             $request = Http::withoutVerifying()
@@ -360,7 +379,7 @@ class LocalAIService
                 // POST: build JSON body from json_format
                 $body = [];
                 if ($tool->json_format) {
-                    $bodyJson = $this->replaceVariables($tool->json_format, $parameters);
+                    $bodyJson = $this->replaceVariables($tool->json_format, $allVariables);
                     $body = json_decode($bodyJson, true);
                     if (json_last_error() !== JSON_ERROR_NONE) {
                         // If JSON parsing fails, use the replaced string as-is
@@ -419,10 +438,29 @@ class LocalAIService
     protected function replaceVariables(string $text, array $parameters): string
     {
         foreach ($parameters as $key => $value) {
+            // Handle both {{variable}} and @{{variable}} formats
+            $text = str_replace("@{{$key}}", $value, $text);
             $text = str_replace("{{{$key}}}", $value, $text);
             $text = str_replace("{{$key}}", $value, $text);
         }
         return $text;
+    }
+
+    /**
+     * Expand parameters with conversation context variables
+     */
+    protected function expandParametersWithContext(array $parameters, ?array $context): array
+    {
+        if (!$context) {
+            return $parameters;
+        }
+
+        $expanded = $parameters;
+        foreach ($parameters as $key => $value) {
+            // Replace variables in parameter values
+            $expanded[$key] = $this->replaceVariables($value, $context);
+        }
+        return $expanded;
     }
 
     /**

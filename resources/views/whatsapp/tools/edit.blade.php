@@ -151,7 +151,7 @@
                 @error('json_format')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
-                <p class="mt-1 text-xs text-gray-500">Usa {{'{{variable}}'}} para que la IA reemplace valores dinámicamente</p>
+                <p class="mt-1 text-xs text-gray-500">Usa @{{variable}} para que la IA reemplace valores dinámicamente. Variables disponibles: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}</p>
             </div>
 
             <!-- Timeout y Order -->
@@ -232,7 +232,7 @@
                 @error('headers')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
-                <p class="mt-1 text-xs text-gray-500">Usa {{'{{variable}}'}} para valores dinámicos</p>
+                <p class="mt-1 text-xs text-gray-500">Usa @{{variable}} para valores dinámicos. Variables disponibles: @{{phone}}, @{{name}}, @{{date}}, @{{conversation_topic}}, @{{conversation_summary}}</p>
             </div>
 
             <!-- Activa -->

@@ -469,13 +469,16 @@ class ProcessWebhookEvent implements ShouldQueue
                 return;
             }
 
+            // Build conversation context for tools
+            $conversationContext = $this->buildConversationContext($conversation, $contact, $history);
+
             Log::info('Generating AI response', [
                 'conversation_id' => $conversation->id,
                 'message_id' => $incomingMessage->id,
                 'user_message_length' => strlen($userMessage),
             ]);
 
-            $aiResult = $aiService->generateResponse($userMessage, $history, $systemPrompt);
+            $aiResult = $aiService->generateResponse($userMessage, $history, $systemPrompt, $conversationContext);
 
             if (!$aiResult['success'] || empty($aiResult['response'])) {
                 Log::warning('AI response generation failed', [
@@ -719,5 +722,80 @@ class ProcessWebhookEvent implements ShouldQueue
             ]);
             // Don't throw - notification failure shouldn't break incident creation
         }
+    }
+
+    /**
+     * Build conversation context for tool variable replacement
+     */
+    protected function buildConversationContext(Conversation $conversation, Contact $contact, array $history): array
+    {
+        $context = [
+            'phone' => $contact->phone_number ?? $contact->wa_id ?? '',
+            'name' => $contact->name ?? $contact->phone_number ?? 'Cliente',
+            'date' => now()->format('d/m/Y H:i'),
+        ];
+
+        // Get conversation topic and summary using AI if available
+        try {
+            $analysisService = new \App\Services\IncidentAnalysisService();
+            
+            // Get conversation text for analysis
+            $conversationText = '';
+            foreach ($history as $msg) {
+                $role = $msg['direction'] === 'inbound' ? 'Cliente' : 'Asistente';
+                $text = $msg['body'] ?? $msg['text'] ?? '';
+                if ($text) {
+                    $conversationText .= "{$role}: {$text}\n";
+                }
+            }
+
+            if (!empty($conversationText)) {
+                // Get topic (simple extraction from first messages)
+                $topic = $this->extractConversationTopic($conversationText);
+                $context['conversation_topic'] = $topic;
+
+                // Get summary (use existing service if available)
+                $summary = $analysisService->generateConversationSummary(
+                    array_map(function($msg) {
+                        return [
+                            'role' => $msg['direction'] === 'inbound' ? 'user' : 'assistant',
+                            'content' => $msg['body'] ?? $msg['text'] ?? '',
+                        ];
+                    }, $history)
+                );
+                $context['conversation_summary'] = $summary;
+            } else {
+                $context['conversation_topic'] = 'Consulta general';
+                $context['conversation_summary'] = 'Sin resumen disponible';
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error building conversation context', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage(),
+            ]);
+            $context['conversation_topic'] = 'Consulta general';
+            $context['conversation_summary'] = 'Sin resumen disponible';
+        }
+
+        return $context;
+    }
+
+    /**
+     * Extract conversation topic from conversation text
+     */
+    protected function extractConversationTopic(string $conversationText): string
+    {
+        // Simple extraction: get first meaningful message from client
+        $lines = explode("\n", $conversationText);
+        foreach ($lines as $line) {
+            if (str_starts_with($line, 'Cliente:')) {
+                $topic = trim(str_replace('Cliente:', '', $line));
+                if (strlen($topic) > 10) {
+                    // Limit to first 100 characters
+                    return strlen($topic) > 100 ? substr($topic, 0, 100) . '...' : $topic;
+                }
+            }
+        }
+        return 'Consulta general';
     }
 }
