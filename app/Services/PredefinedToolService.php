@@ -230,7 +230,18 @@ class PredefinedToolService
             if (is_array($templateParameters) && !empty($templateParameters)) {
                 foreach ($templateParameters as $key => $param) {
                     if (is_string($param)) {
+                        \Log::debug('Replacing template parameter', [
+                            'key' => $key,
+                            'param_before' => $param,
+                            'context_has_incident_type' => isset($context['incident_type']),
+                            'context_has_summary' => isset($context['summary']),
+                        ]);
                         $replaced = $this->replaceVariables($param, $context);
+                        \Log::debug('Template parameter replaced', [
+                            'key' => $key,
+                            'param_after' => $replaced,
+                            'was_replaced' => $replaced !== $param,
+                        ]);
                         $templateParameters[$key] = $replaced;
                     } elseif (is_numeric($param)) {
                         // Si es numérico, convertirlo a string
@@ -257,6 +268,10 @@ class PredefinedToolService
                 'template_parameters_count' => count($templateParameters),
                 'context_keys' => array_keys($context),
                 'context_sample' => array_slice($context, 0, 5), // Primeros 5 elementos del contexto
+                'incident_type_value' => $context['incident_type'] ?? 'NOT_SET',
+                'summary_value' => $context['summary'] ?? 'NOT_SET',
+                'incident_id_value' => $context['incident_id'] ?? 'NOT_SET',
+                'phone_number_value' => $context['phone_number'] ?? 'NOT_SET',
             ]);
 
             // Use WhatsAppService to send template message

@@ -720,8 +720,8 @@ class ProcessWebhookEvent implements ShouldQueue
 
             if ($recentIncident) {
                 $context['incident_id'] = (string)$recentIncident->id;
-                $context['incident_type'] = $recentIncident->type ?? '';
-                $context['summary'] = $recentIncident->summary ?? '';
+                $context['incident_type'] = $recentIncident->incident_type ?? '';
+                $context['summary'] = $recentIncident->incident_summary ?? '';
             }
         } catch (\Exception $e) {
             Log::warning('Error adding incident info to context', [
