@@ -155,6 +155,16 @@ class PredefinedToolService
             $templateLanguage = $this->getConfigValue('template_language', $config, $parameters) ?? 'es';
             $templateParametersRaw = $this->getConfigValue('template_parameters', $config, $parameters);
             
+            // Log para debugging
+            \Log::info('WhatsApp tool config values', [
+                'to' => $to,
+                'template_name' => $templateName,
+                'template_language' => $templateLanguage,
+                'template_parameters_raw' => $templateParametersRaw,
+                'template_parameters_raw_type' => gettype($templateParametersRaw),
+                'config_keys' => $config ? array_keys($config) : [],
+            ]);
+            
             // Merge context for variable replacement (context takes priority, then parameters)
             $context = array_merge($parameters, $allContext ?? []);
             
@@ -184,23 +194,70 @@ class PredefinedToolService
             }
 
             // Procesar template_parameters (puede ser JSON string o array)
+            $templateParameters = [];
+            
+            // Log inicial para debugging
+            \Log::info('Template parameters - initial', [
+                'template_parameters_raw' => $templateParametersRaw,
+                'template_parameters_raw_type' => gettype($templateParametersRaw),
+                'is_string' => is_string($templateParametersRaw),
+                'is_array' => is_array($templateParametersRaw),
+            ]);
+            
             if (is_string($templateParametersRaw)) {
-                // Reemplazar variables antes de parsear JSON
-                $templateParametersRaw = $this->replaceVariables($templateParametersRaw, $context);
+                // Si es string, puede ser JSON que necesita parsearse
+                // Primero intentar parsear como JSON
                 $decoded = json_decode($templateParametersRaw, true);
-                $templateParameters = $decoded !== null ? $decoded : [];
-            } else {
-                $templateParameters = $templateParametersRaw ?? [];
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    // Ya está parseado, usar directamente
+                    $templateParameters = $decoded;
+                } else {
+                    // Si no es JSON válido, puede ser un string simple
+                    // Intentar reemplazar variables y luego parsear
+                    $templateParametersRaw = $this->replaceVariables($templateParametersRaw, $context);
+                    $decoded = json_decode($templateParametersRaw, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $templateParameters = $decoded;
+                    }
+                }
+            } elseif (is_array($templateParametersRaw)) {
+                // Si ya es array, usar directamente
+                $templateParameters = $templateParametersRaw;
             }
 
             // Si template_parameters es un array, reemplazar variables en cada elemento
-            if (is_array($templateParameters)) {
+            // Los parámetros vienen como array indexado [0 => "{{incident_type}}", 1 => "{{summary}}", ...]
+            if (is_array($templateParameters) && !empty($templateParameters)) {
                 foreach ($templateParameters as $key => $param) {
                     if (is_string($param)) {
-                        $templateParameters[$key] = $this->replaceVariables($param, $context);
+                        $replaced = $this->replaceVariables($param, $context);
+                        $templateParameters[$key] = $replaced;
+                    } elseif (is_numeric($param)) {
+                        // Si es numérico, convertirlo a string
+                        $templateParameters[$key] = (string)$param;
+                    } elseif ($param === null || $param === '') {
+                        // Si está vacío, mantenerlo vacío pero loguear
+                        \Log::warning('Template parameter is empty', [
+                            'key' => $key,
+                            'param' => $param,
+                        ]);
                     }
                 }
+            } else {
+                \Log::warning('Template parameters is empty or not an array', [
+                    'template_parameters' => $templateParameters,
+                    'is_array' => is_array($templateParameters),
+                    'count' => is_array($templateParameters) ? count($templateParameters) : 0,
+                ]);
             }
+            
+            // Log final para debugging
+            \Log::info('Template parameters - processed', [
+                'template_parameters' => $templateParameters,
+                'template_parameters_count' => count($templateParameters),
+                'context_keys' => array_keys($context),
+                'context_sample' => array_slice($context, 0, 5), // Primeros 5 elementos del contexto
+            ]);
 
             // Use WhatsAppService to send template message
             $whatsappService = new WhatsAppService();
