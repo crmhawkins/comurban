@@ -494,59 +494,141 @@
             } else {
                 // Para otros tipos (email), generar campos normalmente
                 for (const [key, field] of Object.entries(configFields)) {
+                    // Saltar campos de estilo por ahora, los añadiremos después
+                    if (key.startsWith('body_')) {
+                        continue;
+                    }
+
                     const fieldId = `config_${key}`;
                     const fieldValue = getConfigValue(key, field.default || '');
-                const isRequired = field.required ? 'required' : '';
-                const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
+                    const isRequired = field.required ? 'required' : '';
+                    const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
 
-                fieldsHtml += `
-                    <div class="mb-4">
-                        <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
-                            ${field.label} ${requiredStar}
-                        </label>
-                `;
+                    fieldsHtml += `
+                        <div class="mb-4">
+                            <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                                ${field.label} ${requiredStar}
+                            </label>
+                    `;
 
                     // Si es body, usar textarea
                     if (key === 'body') {
-                    const textareaValue = fieldValue
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;');
+                        const textareaValue = fieldValue
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
 
-                    fieldsHtml += `
-                        <textarea
-                            id="${fieldId}"
+                        fieldsHtml += `
+                            <textarea
+                                id="${fieldId}"
                                 name="config[${key}]"
                                 rows="6"
-                            ${isRequired}
+                                ${isRequired}
                                 class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 placeholder="Escribe el cuerpo del mensaje aquí..."
-                        >${textareaValue}</textarea>
-                    `;
-                } else {
-                    const inputValue = fieldValue
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;');
+                            >${textareaValue}</textarea>
+                        `;
+                    } else {
+                        const inputValue = fieldValue
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;');
+
+                        fieldsHtml += `
+                            <input
+                                type="text"
+                                id="${fieldId}"
+                                name="config[${key}]"
+                                value="${inputValue}"
+                                ${isRequired}
+                                class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                placeholder="${(field.variable || field.label).replace(/"/g, '&quot;')}"
+                            />
+                        `;
+                    }
 
                     fieldsHtml += `
-                        <input
-                            type="text"
-                            id="${fieldId}"
-                                name="config[${key}]"
-                            value="${inputValue}"
-                            ${isRequired}
-                            class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            placeholder="${(field.variable || field.label).replace(/"/g, '&quot;')}"
-                        />
-                    `;
-                }
-
-                fieldsHtml += `
                         <p class="mt-1 text-xs text-gray-500">Variables: <code>@{{phone}}</code>, <code>@{{name}}</code>, <code>@{{date}}</code>, <code>@{{conversation_topic}}</code>, <code>@{{conversation_summary}}</code></p>
                     </div>
                 `;
+                }
+
+                // Añadir sección de estilos para email
+                if (selectedType === 'email') {
+                    fieldsHtml += `
+                        <div class="mt-6 pt-6 border-t border-gray-300">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Estilos del Correo</h3>
+                            <p class="text-sm text-gray-600 mb-4">Configura el formato visual del correo electrónico</p>
+                    `;
+
+                    // Generar campos de estilo
+                    const styleFields = ['body_font_family', 'body_font_size', 'body_font_weight', 'body_font_style', 'body_text_color', 'body_background_color', 'body_line_height'];
+                    for (const key of styleFields) {
+                        const field = configFields[key];
+                        if (!field) continue;
+
+                        const fieldId = `config_${key}`;
+                        const fieldValue = getConfigValue(key, field.default || '');
+                        const fieldLabel = field.label || key.replace('body_', '').replace(/_/g, ' ');
+
+                        fieldsHtml += `
+                            <div class="mb-4">
+                                <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                                    ${fieldLabel}
+                                </label>
+                        `;
+
+                        if (field.type === 'select' && field.options) {
+                            fieldsHtml += `
+                                <select
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                >
+                            `;
+                            for (const [value, label] of Object.entries(field.options)) {
+                                const selected = fieldValue === value ? 'selected' : '';
+                                fieldsHtml += `
+                                    <option value="${value}" ${selected}>${label}</option>
+                                `;
+                            }
+                            fieldsHtml += `</select>`;
+                        } else if (field.type === 'color') {
+                            const colorValue = fieldValue.replace(/"/g, '&quot;');
+                            fieldsHtml += `
+                                <input
+                                    type="color"
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    value="${colorValue}"
+                                    class="block w-full h-10 px-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer"
+                                />
+                            `;
+                        } else {
+                            const inputValue = fieldValue
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;');
+                            fieldsHtml += `
+                                <input
+                                    type="text"
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    value="${inputValue}"
+                                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    placeholder="${fieldLabel}"
+                                />
+                            `;
+                        }
+
+                        fieldsHtml += `
+                            </div>
+                        `;
+                    }
+
+                    fieldsHtml += `</div>`;
                 }
             }
 

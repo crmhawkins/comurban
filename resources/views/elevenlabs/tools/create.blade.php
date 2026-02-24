@@ -461,6 +461,11 @@
                     const isRequired = field.required ? 'required' : '';
                     const requiredStar = field.required ? '<span class="text-red-500">*</span>' : '';
 
+                    // Saltar campos de estilo por ahora, los añadiremos después
+                    if (key.startsWith('body_')) {
+                        continue;
+                    }
+
                     fieldsHtml += `
                         <div class="mb-4">
                             <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
@@ -500,6 +505,76 @@
                             </p>
                         </div>
                     `;
+                }
+
+                // Añadir sección de estilos para email
+                if (selectedType === 'email') {
+                    fieldsHtml += `
+                        <div class="mt-6 pt-6 border-t border-gray-300">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Estilos del Correo</h3>
+                            <p class="text-sm text-gray-600 mb-4">Configura el formato visual del correo electrónico</p>
+                    `;
+
+                    // Generar campos de estilo
+                    const styleFields = ['body_font_family', 'body_font_size', 'body_font_weight', 'body_font_style', 'body_text_color', 'body_background_color', 'body_line_height'];
+                    for (const key of styleFields) {
+                        const field = configFields[key];
+                        if (!field) continue;
+
+                        const fieldId = `config_${key}`;
+                        const fieldValue = oldConfig[key] || field.default || '';
+                        const fieldLabel = field.label || key.replace('body_', '').replace(/_/g, ' ');
+
+                        fieldsHtml += `
+                            <div class="mb-4">
+                                <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
+                                    ${fieldLabel}
+                                </label>
+                        `;
+
+                        if (field.type === 'select' && field.options) {
+                            fieldsHtml += `
+                                <select
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                >
+                            `;
+                            for (const [value, label] of Object.entries(field.options)) {
+                                fieldsHtml += `
+                                    <option value="${value}" ${fieldValue === value ? 'selected' : ''}>${label}</option>
+                                `;
+                            }
+                            fieldsHtml += `</select>`;
+                        } else if (field.type === 'color') {
+                            fieldsHtml += `
+                                <input
+                                    type="color"
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    value="${fieldValue}"
+                                    class="block w-full h-10 px-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer"
+                                />
+                            `;
+                        } else {
+                            fieldsHtml += `
+                                <input
+                                    type="text"
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    value="${fieldValue}"
+                                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    placeholder="${fieldLabel}"
+                                />
+                            `;
+                        }
+
+                        fieldsHtml += `
+                            </div>
+                        `;
+                    }
+
+                    fieldsHtml += `</div>`;
                 }
             }
 

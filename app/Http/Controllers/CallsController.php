@@ -217,16 +217,28 @@ class CallsController extends Controller
                 ?? null;
 
             // Extract summary from analysis
-            $summary = null;
+            $rawSummary = null;
             if (isset($conversation['analysis']['transcript_summary'])) {
-                $summary = $conversation['analysis']['transcript_summary'];
+                $rawSummary = $conversation['analysis']['transcript_summary'];
             } elseif (isset($conversation['analysis']['call_summary_title'])) {
-                $summary = $conversation['analysis']['call_summary_title'];
+                $rawSummary = $conversation['analysis']['call_summary_title'];
             } elseif (isset($conversation['summary'])) {
-                $summary = $conversation['summary'];
+                $rawSummary = $conversation['summary'];
             } elseif (isset($conversation['metadata']['summary'])) {
-                $summary = $conversation['metadata']['summary'];
+                $rawSummary = $conversation['metadata']['summary'];
             }
+
+            // Translate summary to Spanish if it exists
+            $summaryText = null;
+            if ($rawSummary) {
+                $summaryText = $this->translateToSpanish($rawSummary);
+            }
+
+            // Extract client name from transcript
+            $clientName = $this->extractClientNameFromTranscript($transcript, $phoneNumber);
+
+            // Format summary with client info
+            $summary = $this->formatCallSummary($clientName, $phoneNumber, $startedAt, $summaryText);
 
             // Analyze call category using AI
             $category = 'desconocido';
@@ -576,6 +588,140 @@ class CallsController extends Controller
             ]);
             // Don't throw - we don't want to break call processing if transfer detection fails
         }
+    }
+
+    /**
+     * Translate text to Spanish using MyMemory Translation API (free)
+     */
+    protected function translateToSpanish(string $text): string
+    {
+        // If text is empty or very short, return as is
+        if (empty(trim($text)) || strlen(trim($text)) < 10) {
+            return $text;
+        }
+
+        // Simple detection: if text contains common Spanish words, assume it's already in Spanish
+        $spanishIndicators = ['el ', 'la ', 'de ', 'que ', 'y ', 'en ', 'un ', 'es ', 'se ', 'no ', 'te ', 'lo ', 'le ', 'da ', 'su ', 'por ', 'son ', 'con ', 'está', 'para', 'más', 'como', 'muy', 'todo', 'pero', 'hacer', 'puede', 'tiene', 'dice', 'será', 'están', 'estos', 'estas', 'desde', 'hasta', 'donde', 'cuando', 'cómo', 'qué', 'quién', 'cuál', 'cuáles', 'cuánto', 'cuánta', 'cuántos', 'cuántas'];
+
+        $textLower = mb_strtolower($text, 'UTF-8');
+        $spanishWordCount = 0;
+        foreach ($spanishIndicators as $indicator) {
+            if (mb_strpos($textLower, $indicator, 0, 'UTF-8') !== false) {
+                $spanishWordCount++;
+            }
+        }
+
+        // If we find 3+ Spanish indicators, assume it's already in Spanish
+        if ($spanishWordCount >= 3) {
+            return $text;
+        }
+
+        try {
+            // Use MyMemory Translation API (free, no API key required)
+            $response = \Illuminate\Support\Facades\Http::timeout(5)
+                ->get('https://api.mymemory.translated.net/get', [
+                    'q' => $text,
+                    'langpair' => 'en|es',
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['responseData']['translatedText'])) {
+                    $translated = $data['responseData']['translatedText'];
+                    // MyMemory sometimes returns the same text if it can't translate
+                    // Check if translation is different from original
+                    if (mb_strtolower(trim($translated), 'UTF-8') !== mb_strtolower(trim($text), 'UTF-8')) {
+                        return $translated;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // If translation fails, return original text
+            Log::warning('Error al traducir resumen', ['error' => $e->getMessage()]);
+        }
+
+        // Return original text if translation failed
+        return $text;
+    }
+
+    /**
+     * Extract client name from transcript
+     * Tries to find the name the client mentioned during the call
+     */
+    protected function extractClientNameFromTranscript(?string $transcript, ?string $phoneNumber): string
+    {
+        if (!$transcript) {
+            return 'Desconocido';
+        }
+
+        // Common patterns for name introduction
+        $namePatterns = [
+            // "Me llamo [nombre]"
+            '/me\s+llamo\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // "Soy [nombre]"
+            '/soy\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // "Mi nombre es [nombre]"
+            '/mi\s+nombre\s+es\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // "Soy el/la [nombre]"
+            '/soy\s+(?:el|la)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // After agent asks "¿Cómo te llamas?" or similar
+            '/¿?cómo\s+te\s+llamas\??.*?\[Usuario\]:\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+        ];
+
+        foreach ($namePatterns as $pattern) {
+            if (preg_match($pattern, $transcript, $matches)) {
+                $name = trim($matches[1]);
+                // Validate it's not a common word
+                $commonWords = ['hola', 'buenos', 'días', 'tardes', 'gracias', 'por favor', 'si', 'no', 'vale', 'ok'];
+                if (!in_array(strtolower($name), $commonWords) && strlen($name) >= 2) {
+                    return $name;
+                }
+            }
+        }
+
+        // Try to find name in user messages (first few user messages often contain name)
+        $transcriptLines = explode("\n", $transcript);
+        $userMessages = [];
+        foreach ($transcriptLines as $line) {
+            if (preg_match('/^\[Usuario\]:\s*(.+)$/i', $line, $matches)) {
+                $userMessages[] = $matches[1];
+            }
+        }
+
+        // Check first few user messages for name patterns
+        foreach (array_slice($userMessages, 0, 3) as $message) {
+            // Look for capitalized words that might be names
+            if (preg_match('/\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})?)\b/u', $message, $matches)) {
+                $potentialName = trim($matches[1]);
+                // Skip common words
+                $commonWords = ['Hola', 'Buenos', 'Días', 'Tardes', 'Gracias', 'Por', 'Favor', 'Si', 'No', 'Vale', 'Ok', 'El', 'La', 'Los', 'Las', 'Un', 'Una', 'De', 'Del', 'Y', 'O'];
+                if (!in_array($potentialName, $commonWords) && strlen($potentialName) >= 2) {
+                    return $potentialName;
+                }
+            }
+        }
+
+        return 'Desconocido';
+    }
+
+    /**
+     * Format call summary with client information
+     */
+    protected function formatCallSummary(string $clientName, ?string $phoneNumber, $startedAt, ?string $summaryText): string
+    {
+        $formatted = "Cliente: {$clientName}\n";
+        $formatted .= "Telefono: " . ($phoneNumber ?? 'N/A') . "\n";
+        
+        if ($startedAt) {
+            $formatted .= "Fecha: " . $startedAt->format('Y-m-d H:i:s') . "\n";
+        } else {
+            $formatted .= "Fecha: " . now()->format('Y-m-d H:i:s') . "\n";
+        }
+        
+        $formatted .= "\nResumen: \n";
+        $formatted .= $summaryText ?? 'Sin resumen disponible.';
+
+        return $formatted;
     }
 
 }

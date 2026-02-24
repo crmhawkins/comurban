@@ -48,6 +48,13 @@ class WhatsAppTool extends Model
                     'to' => ['label' => 'Destinatario', 'required' => true, 'variable' => '{{to}}'],
                     'subject' => ['label' => 'Asunto', 'required' => true, 'variable' => '{{subject}}'],
                     'body' => ['label' => 'Cuerpo del mensaje', 'required' => true, 'variable' => '{{body}}'],
+                    'body_font_family' => ['label' => 'Fuente', 'required' => false, 'variable' => null, 'default' => 'Arial, sans-serif', 'type' => 'select', 'options' => ['Arial, sans-serif' => 'Arial', 'Georgia, serif' => 'Georgia', 'Times New Roman, serif' => 'Times New Roman', 'Courier New, monospace' => 'Courier New', 'Verdana, sans-serif' => 'Verdana']],
+                    'body_font_size' => ['label' => 'Tamaño de fuente', 'required' => false, 'variable' => null, 'default' => '14px', 'type' => 'select', 'options' => ['10px' => 'Muy pequeño (10px)', '12px' => 'Pequeño (12px)', '14px' => 'Normal (14px)', '16px' => 'Mediano (16px)', '18px' => 'Grande (18px)', '20px' => 'Muy grande (20px)', '24px' => 'Extra grande (24px)']],
+                    'body_font_weight' => ['label' => 'Grosor de fuente', 'required' => false, 'variable' => null, 'default' => 'normal', 'type' => 'select', 'options' => ['normal' => 'Normal', 'bold' => 'Negrita', 'lighter' => 'Ligera']],
+                    'body_font_style' => ['label' => 'Estilo de fuente', 'required' => false, 'variable' => null, 'default' => 'normal', 'type' => 'select', 'options' => ['normal' => 'Normal', 'italic' => 'Cursiva', 'oblique' => 'Obliqua']],
+                    'body_text_color' => ['label' => 'Color del texto', 'required' => false, 'variable' => null, 'default' => '#000000', 'type' => 'color'],
+                    'body_background_color' => ['label' => 'Color de fondo', 'required' => false, 'variable' => null, 'default' => '#ffffff', 'type' => 'color'],
+                    'body_line_height' => ['label' => 'Altura de línea', 'required' => false, 'variable' => null, 'default' => '1.5', 'type' => 'select', 'options' => ['1' => 'Compacto (1)', '1.2' => 'Estrecho (1.2)', '1.5' => 'Normal (1.5)', '1.8' => 'Amplio (1.8)', '2' => 'Muy amplio (2)']],
                 ],
             ],
             'whatsapp' => [

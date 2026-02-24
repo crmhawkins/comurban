@@ -51,6 +51,15 @@ class PredefinedToolService
             // Merge context for variable replacement (context takes priority, then parameters)
             $context = array_merge($parameters, $allContext ?? []);
             
+            // Obtener configuración de estilos
+            $fontFamily = $this->getConfigValue('body_font_family', $config, $parameters) ?? 'Arial, sans-serif';
+            $fontSize = $this->getConfigValue('body_font_size', $config, $parameters) ?? '14px';
+            $fontWeight = $this->getConfigValue('body_font_weight', $config, $parameters) ?? 'normal';
+            $fontStyle = $this->getConfigValue('body_font_style', $config, $parameters) ?? 'normal';
+            $textColor = $this->getConfigValue('body_text_color', $config, $parameters) ?? '#000000';
+            $backgroundColor = $this->getConfigValue('body_background_color', $config, $parameters) ?? '#ffffff';
+            $lineHeight = $this->getConfigValue('body_line_height', $config, $parameters) ?? '1.5';
+
             // Reemplazar variables en los valores (soporta @{{variable}} y {{variable}})
             if ($to) {
                 $to = $this->replaceVariables($to, $context);
@@ -61,6 +70,17 @@ class PredefinedToolService
             if ($body) {
                 $body = $this->replaceVariables($body, $context);
             }
+            
+            // Aplicar estilos al cuerpo del correo
+            $body = $this->applyEmailStyles($body, [
+                'font_family' => $fontFamily,
+                'font_size' => $fontSize,
+                'font_weight' => $fontWeight,
+                'font_style' => $fontStyle,
+                'text_color' => $textColor,
+                'background_color' => $backgroundColor,
+                'line_height' => $lineHeight,
+            ]);
 
             if (!$to) {
                 return [
@@ -104,8 +124,8 @@ class PredefinedToolService
                 Config::set('mail.from', $mailConfig['from']);
             }
 
-            // Send email using Laravel Mail
-            Mail::mailer($mailerName)->raw($body, function ($message) use ($to, $subject, $emailAccount) {
+            // Send email using Laravel Mail (HTML format)
+            Mail::mailer($mailerName)->html($body, function ($message) use ($to, $subject, $emailAccount) {
                 $message->to($to)
                     ->subject($subject);
 
@@ -502,5 +522,48 @@ class PredefinedToolService
         }
         
         return $text;
+    }
+
+    /**
+     * Apply email styles to body text
+     * Converts plain text to HTML with configured styles
+     */
+    protected function applyEmailStyles(string $body, array $styles): string
+    {
+        // Convert line breaks to <br> tags
+        $body = nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));
+        
+        // Build inline styles
+        $inlineStyles = sprintf(
+            'font-family: %s; font-size: %s; font-weight: %s; font-style: %s; color: %s; background-color: %s; line-height: %s;',
+            htmlspecialchars($styles['font_family'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($styles['font_size'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($styles['font_weight'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($styles['font_style'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($styles['text_color'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($styles['background_color'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($styles['line_height'], ENT_QUOTES, 'UTF-8')
+        );
+        
+        // Wrap in styled div
+        $htmlBody = sprintf(
+            '<div style="%s; padding: 20px;">%s</div>',
+            $inlineStyles,
+            $body
+        );
+        
+        // Wrap in full HTML structure for better email client compatibility
+        $html = '<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: ' . htmlspecialchars($styles['background_color'], ENT_QUOTES, 'UTF-8') . ';">
+    ' . $htmlBody . '
+</body>
+</html>';
+        
+        return $html;
     }
 }

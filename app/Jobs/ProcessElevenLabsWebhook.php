@@ -172,21 +172,28 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     ?? null;
 
                 // Extract summary from analysis
-                $summary = null;
+                $rawSummary = null;
                 if (isset($conversation['analysis']['transcript_summary'])) {
-                    $summary = $conversation['analysis']['transcript_summary'];
+                    $rawSummary = $conversation['analysis']['transcript_summary'];
                 } elseif (isset($conversation['analysis']['call_summary_title'])) {
-                    $summary = $conversation['analysis']['call_summary_title'];
+                    $rawSummary = $conversation['analysis']['call_summary_title'];
                 } elseif (isset($conversation['summary'])) {
-                    $summary = $conversation['summary'];
+                    $rawSummary = $conversation['summary'];
                 } elseif (isset($conversation['metadata']['summary'])) {
-                    $summary = $conversation['metadata']['summary'];
+                    $rawSummary = $conversation['metadata']['summary'];
                 }
 
                 // Translate summary to Spanish if it exists and is not already in Spanish
-                if ($summary) {
-                    $summary = $this->translateToSpanish($summary);
+                $summaryText = null;
+                if ($rawSummary) {
+                    $summaryText = $this->translateToSpanish($rawSummary);
                 }
+
+                // Extract client name from transcript
+                $clientName = $this->extractClientNameFromTranscript($transcript, $phoneNumber);
+
+                // Format summary with client info
+                $summary = $this->formatCallSummary($clientName, $phoneNumber, $startedAt, $summaryText);
 
                 // Analyze call category using AI
                 $category = 'desconocido';
@@ -623,6 +630,86 @@ class ProcessElevenLabsWebhook implements ShouldQueue
             ]);
             // Don't throw - we don't want to break call processing if transfer detection fails
         }
+    }
+
+    /**
+     * Extract client name from transcript
+     * Tries to find the name the client mentioned during the call
+     */
+    protected function extractClientNameFromTranscript(?string $transcript, ?string $phoneNumber): string
+    {
+        if (!$transcript) {
+            return 'Desconocido';
+        }
+
+        // Common patterns for name introduction
+        $namePatterns = [
+            // "Me llamo [nombre]"
+            '/me\s+llamo\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // "Soy [nombre]"
+            '/soy\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // "Mi nombre es [nombre]"
+            '/mi\s+nombre\s+es\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // "Soy el/la [nombre]"
+            '/soy\s+(?:el|la)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+            // After agent asks "¿Cómo te llamas?" or similar
+            '/¿?cómo\s+te\s+llamas\??.*?\[Usuario\]:\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/iu',
+        ];
+
+        foreach ($namePatterns as $pattern) {
+            if (preg_match($pattern, $transcript, $matches)) {
+                $name = trim($matches[1]);
+                // Validate it's not a common word
+                $commonWords = ['hola', 'buenos', 'días', 'tardes', 'gracias', 'por favor', 'si', 'no', 'vale', 'ok'];
+                if (!in_array(strtolower($name), $commonWords) && strlen($name) >= 2) {
+                    return $name;
+                }
+            }
+        }
+
+        // Try to find name in user messages (first few user messages often contain name)
+        $transcriptLines = explode("\n", $transcript);
+        $userMessages = [];
+        foreach ($transcriptLines as $line) {
+            if (preg_match('/^\[Usuario\]:\s*(.+)$/i', $line, $matches)) {
+                $userMessages[] = $matches[1];
+            }
+        }
+
+        // Check first few user messages for name patterns
+        foreach (array_slice($userMessages, 0, 3) as $message) {
+            // Look for capitalized words that might be names
+            if (preg_match('/\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})?)\b/u', $message, $matches)) {
+                $potentialName = trim($matches[1]);
+                // Skip common words
+                $commonWords = ['Hola', 'Buenos', 'Días', 'Tardes', 'Gracias', 'Por', 'Favor', 'Si', 'No', 'Vale', 'Ok', 'El', 'La', 'Los', 'Las', 'Un', 'Una', 'De', 'Del', 'Y', 'O'];
+                if (!in_array($potentialName, $commonWords) && strlen($potentialName) >= 2) {
+                    return $potentialName;
+                }
+            }
+        }
+
+        return 'Desconocido';
+    }
+
+    /**
+     * Format call summary with client information
+     */
+    protected function formatCallSummary(string $clientName, ?string $phoneNumber, $startedAt, ?string $summaryText): string
+    {
+        $formatted = "Cliente: {$clientName}\n";
+        $formatted .= "Telefono: " . ($phoneNumber ?? 'N/A') . "\n";
+        
+        if ($startedAt) {
+            $formatted .= "Fecha: " . $startedAt->format('Y-m-d H:i:s') . "\n";
+        } else {
+            $formatted .= "Fecha: " . now()->format('Y-m-d H:i:s') . "\n";
+        }
+        
+        $formatted .= "\nResumen: \n";
+        $formatted .= $summaryText ?? 'Sin resumen disponible.';
+
+        return $formatted;
     }
 
 }
