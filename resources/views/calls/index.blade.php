@@ -72,6 +72,10 @@
             <p class="text-2xl font-bold text-red-600">{{ $stats['failed'] ?? 0 }}</p>
         </div>
         <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
+            <p class="text-sm font-medium text-gray-600">Transferidas</p>
+            <p class="text-2xl font-bold text-purple-600">{{ $stats['transferred'] ?? 0 }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
             <p class="text-sm font-medium text-gray-600">Incidencia</p>
             <p class="text-2xl font-bold text-orange-600">{{ $stats['incidencia'] ?? 0 }}</p>
         </div>
@@ -111,6 +115,7 @@
                     <option value="in_progress" {{ ($filters['status'] ?? '') === 'in_progress' ? 'selected' : '' }}>En Progreso</option>
                     <option value="failed" {{ ($filters['status'] ?? '') === 'failed' ? 'selected' : '' }}>Fallidas</option>
                     <option value="pending" {{ ($filters['status'] ?? '') === 'pending' ? 'selected' : '' }}>Pendientes</option>
+                    <option value="transferred" {{ ($filters['status'] ?? '') === 'transferred' ? 'selected' : '' }}>Transferidas</option>
                 </select>
             </div>
             <div>
@@ -168,13 +173,19 @@
                                             {{ $call->formatted_phone_number ?? $call->phone_number ?? 'Sin número' }}
                                         </p>
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                            {{ $call->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
-                                            {{ $call->status === 'in_progress' ? 'bg-blue-100 text-blue-800' : '' }}
-                                            {{ $call->status === 'failed' ? 'bg-red-100 text-red-800' : '' }}
-                                            {{ $call->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
+                                            {{ $call->is_transferred ? 'bg-purple-100 text-purple-800' : '' }}
+                                            {{ !$call->is_transferred && $call->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
+                                            {{ !$call->is_transferred && $call->status === 'in_progress' ? 'bg-blue-100 text-blue-800' : '' }}
+                                            {{ !$call->is_transferred && $call->status === 'failed' ? 'bg-red-100 text-red-800' : '' }}
+                                            {{ !$call->is_transferred && $call->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
                                         ">
-                                            {{ ucfirst(str_replace('_', ' ', $call->status)) }}
+                                            {{ $call->is_transferred ? 'Transferida' : ucfirst(str_replace('_', ' ', $call->status)) }}
                                         </span>
+                                        @if($call->is_transferred && $call->transferred_to)
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700" title="Transferida a: {{ $call->transferred_to }}">
+                                                → {{ Str::limit($call->transferred_to, 20) }}
+                                            </span>
+                                        @endif
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                             {{ $call->category === 'incidencia' ? 'bg-orange-100 text-orange-800' : '' }}
                                             {{ $call->category === 'consulta' ? 'bg-blue-100 text-blue-800' : '' }}

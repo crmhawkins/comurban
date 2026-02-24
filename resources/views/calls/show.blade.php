@@ -25,12 +25,13 @@
             </div>
             <div class="flex items-center space-x-2">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                    {{ $call->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
-                    {{ $call->status === 'in_progress' ? 'bg-blue-100 text-blue-800' : '' }}
-                    {{ $call->status === 'failed' ? 'bg-red-100 text-red-800' : '' }}
-                    {{ $call->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
+                    {{ $call->is_transferred ? 'bg-purple-100 text-purple-800' : '' }}
+                    {{ !$call->is_transferred && $call->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
+                    {{ !$call->is_transferred && $call->status === 'in_progress' ? 'bg-blue-100 text-blue-800' : '' }}
+                    {{ !$call->is_transferred && $call->status === 'failed' ? 'bg-red-100 text-red-800' : '' }}
+                    {{ !$call->is_transferred && $call->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
                 ">
-                    {{ ucfirst(str_replace('_', ' ', $call->status)) }}
+                    {{ $call->is_transferred ? 'Transferida' : ucfirst(str_replace('_', ' ', $call->status)) }}
                 </span>
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
                     {{ $call->category === 'incidencia' ? 'bg-orange-100 text-orange-800' : '' }}
@@ -107,8 +108,32 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-600">Estado</p>
-                        <p class="text-sm text-gray-900">{{ ucfirst(str_replace('_', ' ', $call->status)) }}</p>
+                        <div class="flex items-center space-x-2">
+                            <p class="text-sm text-gray-900">{{ $call->is_transferred ? 'Transferida' : ucfirst(str_replace('_', ' ', $call->status)) }}</p>
+                            @if($call->is_transferred)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    Transferida
+                                </span>
+                            @endif
+                        </div>
                     </div>
+                    @if($call->is_transferred && $call->transferred_to)
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Transferida a</p>
+                            <p class="text-sm text-gray-900">
+                                {{ $call->transferred_to }}
+                                @if($call->transfer_type)
+                                    <span class="text-xs text-gray-500">({{ $call->transfer_type === 'agent' ? 'Agente' : 'Teléfono' }})</span>
+                                @endif
+                            </p>
+                        </div>
+                    @endif
+                    @if($call->transfer_detected_at)
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Transferencia detectada</p>
+                            <p class="text-sm text-gray-900">{{ $call->transfer_detected_at->format('d/m/Y H:i:s') }}</p>
+                        </div>
+                    @endif
                     <div>
                         <p class="text-sm font-medium text-gray-600">Categoría</p>
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium

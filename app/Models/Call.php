@@ -19,6 +19,10 @@ class Call extends Model
         'recording_url',
         'summary',
         'call_state',
+        'is_transferred',
+        'transferred_to',
+        'transfer_type',
+        'transfer_detected_at',
     ];
 
     protected function casts(): array
@@ -29,6 +33,8 @@ class Call extends Model
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
             'duration' => 'integer',
+            'is_transferred' => 'boolean',
+            'transfer_detected_at' => 'datetime',
         ];
     }
 

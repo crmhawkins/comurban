@@ -250,6 +250,18 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                         ]);
                     }
                 }
+
+                // Detect transfer after processing tools (AI might have indicated a transfer)
+                if ($transcript) {
+                    try {
+                        $this->detectAndSaveTransfer($call, $transcript);
+                    } catch (\Exception $e) {
+                        Log::error('Error detecting transfer for call', [
+                            'call_id' => $call->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
             });
         } catch (\Exception $e) {
             Log::error('ElevenLabs webhook: error al procesar', [
@@ -537,6 +549,55 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                 'error' => $e->getMessage(),
             ]);
             // Don't throw - we don't want to break call processing if tool execution fails
+        }
+    }
+
+    /**
+     * Detect and save transfer information for a call
+     */
+    protected function detectAndSaveTransfer(Call $call, string $transcript): void
+    {
+        try {
+            $analysisService = new CallAnalysisService();
+            $transferInfo = $analysisService->detectTransfer($transcript);
+
+            if ($transferInfo && isset($transferInfo['is_transferred']) && $transferInfo['is_transferred']) {
+                $call->update([
+                    'is_transferred' => true,
+                    'transferred_to' => $transferInfo['transferred_to'] ?? null,
+                    'transfer_type' => $transferInfo['transfer_type'] ?? 'agent',
+                    'transfer_detected_at' => now(),
+                ]);
+
+                // Si hay transferencia, actualizar el estado a "transferred" si está completada
+                if ($call->status === 'completed') {
+                    // Mantener el estado como 'completed' pero marcarlo como transferida
+                    // El estado 'transferred' se mostrará en la vista
+                }
+
+                Log::info('Transfer detected for call', [
+                    'call_id' => $call->id,
+                    'transferred_to' => $transferInfo['transferred_to'] ?? null,
+                    'transfer_type' => $transferInfo['transfer_type'] ?? 'agent',
+                ]);
+            } else {
+                // Asegurarse de que no está marcada como transferida si no lo es
+                if ($call->is_transferred) {
+                    $call->update([
+                        'is_transferred' => false,
+                        'transferred_to' => null,
+                        'transfer_type' => null,
+                        'transfer_detected_at' => null,
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error in detectAndSaveTransfer', [
+                'call_id' => $call->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Don't throw - we don't want to break call processing if transfer detection fails
         }
     }
 

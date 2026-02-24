@@ -30,7 +30,11 @@ class CallsController extends Controller
 
         // Filter by status
         if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+            if ($request->status === 'transferred') {
+                $query->where('is_transferred', true);
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         // Filter by category
@@ -55,6 +59,7 @@ class CallsController extends Controller
             'completed' => Call::where('status', 'completed')->count(),
             'in_progress' => Call::where('status', 'in_progress')->count(),
             'failed' => Call::where('status', 'failed')->count(),
+            'transferred' => Call::where('is_transferred', true)->count(),
             'incidencia' => Call::where('category', 'incidencia')->count(),
             'consulta' => Call::where('category', 'consulta')->count(),
             'pago' => Call::where('category', 'pago')->count(),
@@ -265,6 +270,30 @@ class CallsController extends Controller
                 }
             }
 
+            // Process tools for completed calls (similar to webhook processing)
+            if ($status === 'completed' && $transcript) {
+                try {
+                    $this->processCallTools($call, $transcript, $phoneNumber, $category);
+                } catch (\Exception $e) {
+                    Log::error('Error processing tools for call in syncLatest', [
+                        'call_id' => $call->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Detect transfer after processing tools
+            if ($transcript) {
+                try {
+                    $this->detectAndSaveTransfer($call, $transcript);
+                } catch (\Exception $e) {
+                    Log::error('Error detecting transfer for call in syncLatest', [
+                        'call_id' => $call->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return back()->with('success', 'Llamada sincronizada correctamente');
         } catch (\Exception $e) {
             Log::error('Error syncing latest call', [
@@ -358,6 +387,181 @@ class CallsController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+        }
+    }
+
+    /**
+     * Process tools for calls
+     * The AI receives the full transcript and all available tools, and decides if it needs to use any
+     */
+    protected function processCallTools(Call $call, string $transcript, ?string $phoneNumber, string $category): void
+    {
+        try {
+            // Get or create contact
+            $contact = null;
+            if ($phoneNumber) {
+                $contact = Contact::firstOrCreate(
+                    ['phone_number' => $phoneNumber],
+                    [
+                        'wa_id' => $phoneNumber,
+                        'name' => $phoneNumber,
+                    ]
+                );
+            }
+
+            // Build context similar to WhatsApp conversations
+            $context = [
+                'phone' => $phoneNumber,
+                'phone_number' => $phoneNumber,
+                'name' => $contact?->name ?? $phoneNumber,
+                'contact_name' => $contact?->name ?? $phoneNumber,
+                'date' => now()->format('Y-m-d H:i:s'),
+                'conversation_topic' => $category ?? 'Llamada',
+                'conversation_summary' => $call->summary ?? '',
+                'call_id' => (string)$call->id,
+                'transcript' => $transcript,
+            ];
+
+            // Add incident information if available
+            $recentIncident = Incident::where('call_id', $call->id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($recentIncident) {
+                $context['incident_id'] = (string)$recentIncident->id;
+                $context['incident_type'] = $recentIncident->incident_type ?? '';
+                $context['summary'] = $recentIncident->incident_summary ?? '';
+            }
+
+            // Get active tools for ElevenLabs platform
+            $tools = \App\Models\WhatsAppTool::active()->forPlatform('elevenlabs')->ordered()->get();
+
+            if ($tools->isEmpty()) {
+                Log::debug('No active tools available for call', [
+                    'call_id' => $call->id,
+                ]);
+                return;
+            }
+
+            // Use AI service to process the call transcript
+            $aiService = new \App\Services\LocalAIService();
+
+            // Build conversation history from transcript
+            $history = [];
+            $transcriptLines = explode("\n", $transcript);
+            foreach ($transcriptLines as $line) {
+                if (preg_match('/^\[([^\]]+)\]:\s*(.+)$/', $line, $matches)) {
+                    $role = strtolower($matches[1]);
+                    $content = $matches[2];
+                    if ($role === 'usuario' || $role === 'user') {
+                        $history[] = ['direction' => 'inbound', 'body' => $content, 'text' => $content];
+                    } elseif ($role === 'agente' || $role === 'agent') {
+                        $history[] = ['direction' => 'outbound', 'body' => $content, 'text' => $content];
+                    }
+                }
+            }
+
+            // Get system prompt from configuration
+            $systemPrompt = \App\Helpers\ConfigHelper::getWhatsAppConfig('ai_prompt', '');
+
+            // Generate AI response with full transcript and all tools
+            $userMessage = "Revisa la conversación de esta llamada telefónica y determina si necesitas usar alguna herramienta para ayudar al cliente o procesar su solicitud.";
+
+            Log::info('Processing call with tools (syncLatest)', [
+                'call_id' => $call->id,
+                'transcript_length' => strlen($transcript),
+                'tools_count' => $tools->count(),
+                'has_incident' => $recentIncident !== null,
+            ]);
+
+            $aiResult = $aiService->generateResponse(
+                $userMessage,
+                $history,
+                $systemPrompt,
+                $context
+            );
+
+            if ($aiResult['success'] && isset($aiResult['response'])) {
+                // Check if AI wants to use a tool
+                $toolUsage = $aiService->detectToolUsage($aiResult['response']);
+
+                if ($toolUsage) {
+                    Log::info('Tool usage detected for call (syncLatest)', [
+                        'call_id' => $call->id,
+                        'tool_name' => $toolUsage['tool_name'],
+                        'parameters' => $toolUsage['parameters'],
+                    ]);
+
+                    // Execute the tool
+                    $toolResult = $aiService->executeTool($toolUsage['tool_name'], $toolUsage['parameters'], $context);
+
+                    if ($toolResult['success']) {
+                        Log::info('Tool executed successfully for call (syncLatest)', [
+                            'call_id' => $call->id,
+                            'tool_name' => $toolUsage['tool_name'],
+                        ]);
+                    } else {
+                        Log::warning('Tool execution failed for call (syncLatest)', [
+                            'call_id' => $call->id,
+                            'tool_name' => $toolUsage['tool_name'],
+                            'error' => $toolResult['error'] ?? 'Unknown error',
+                        ]);
+                    }
+                } else {
+                    Log::debug('No tool usage detected for call (syncLatest)', [
+                        'call_id' => $call->id,
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error processing tools for call (syncLatest)', [
+                'call_id' => $call->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - we don't want to break call processing if tool execution fails
+        }
+    }
+
+    /**
+     * Detect and save transfer information for a call
+     */
+    protected function detectAndSaveTransfer(Call $call, string $transcript): void
+    {
+        try {
+            $analysisService = new CallAnalysisService();
+            $transferInfo = $analysisService->detectTransfer($transcript);
+
+            if ($transferInfo && isset($transferInfo['is_transferred']) && $transferInfo['is_transferred']) {
+                $call->update([
+                    'is_transferred' => true,
+                    'transferred_to' => $transferInfo['transferred_to'] ?? null,
+                    'transfer_type' => $transferInfo['transfer_type'] ?? 'agent',
+                    'transfer_detected_at' => now(),
+                ]);
+
+                Log::info('Transfer detected for call (syncLatest)', [
+                    'call_id' => $call->id,
+                    'transferred_to' => $transferInfo['transferred_to'] ?? null,
+                    'transfer_type' => $transferInfo['transfer_type'] ?? 'agent',
+                ]);
+            } else {
+                // Asegurarse de que no está marcada como transferida si no lo es
+                if ($call->is_transferred) {
+                    $call->update([
+                        'is_transferred' => false,
+                        'transferred_to' => null,
+                        'transfer_type' => null,
+                        'transfer_detected_at' => null,
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error in detectAndSaveTransfer (syncLatest)', [
+                'call_id' => $call->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Don't throw - we don't want to break call processing if transfer detection fails
         }
     }
 
