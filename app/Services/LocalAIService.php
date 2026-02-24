@@ -282,6 +282,20 @@ class LocalAIService
             $prompt .= $systemPrompt . "\n\n";
         }
 
+        // Check if this is a post-call analysis (has call_id or transcript in context)
+        $isPostCallAnalysis = isset($conversationContext['call_id']) || isset($conversationContext['transcript']);
+
+        if ($isPostCallAnalysis) {
+            $prompt .= "=== ANÁLISIS POST-LLAMADA ===\n";
+            $prompt .= "IMPORTANTE: Esta es una llamada telefónica que YA TERMINÓ. Estás analizando la transcripción completa de la conversación.\n";
+            $prompt .= "- NO puedes hacer preguntas al cliente porque la llamada ya terminó y nadie responderá.\n";
+            $prompt .= "- Debes obtener TODA la información necesaria directamente de la conversación que ya ocurrió.\n";
+            $prompt .= "- Si necesitas datos del cliente (nombre, teléfono, email, etc.), extráelos de lo que el cliente dijo durante la llamada.\n";
+            $prompt .= "- Si falta información crítica, úsala de los datos disponibles en el contexto (phone_number, name, etc.).\n";
+            $prompt .= "- Tu objetivo es procesar la solicitud del cliente usando las herramientas disponibles basándote en la información de la conversación.\n";
+            $prompt .= "- NO generes respuestas para el cliente, solo procesa la solicitud usando las herramientas si es necesario.\n\n";
+        }
+
         // Add important instructions about communication
         $prompt .= "INSTRUCCIONES IMPORTANTES DE COMUNICACIÓN:\n";
         $prompt .= "- NUNCA menciones direcciones de correo electrónico, nombres de destinatarios o detalles técnicos sobre el envío de correos.\n";

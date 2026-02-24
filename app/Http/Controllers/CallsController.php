@@ -420,6 +420,7 @@ class CallsController extends Controller
                 'conversation_summary' => $call->summary ?? '',
                 'call_id' => (string)$call->id,
                 'transcript' => $transcript,
+                'platform' => 'elevenlabs', // Especificar plataforma para que LocalAIService encuentre las herramientas correctas
             ];
 
             // Add incident information if available
@@ -462,10 +463,22 @@ class CallsController extends Controller
             }
 
             // Get system prompt from configuration
-            $systemPrompt = \App\Helpers\ConfigHelper::getWhatsAppConfig('ai_prompt', '');
+            $baseSystemPrompt = \App\Helpers\ConfigHelper::getWhatsAppConfig('ai_prompt', '');
+
+            // Build specific system prompt for post-call analysis
+            $systemPrompt = $baseSystemPrompt;
+            $systemPrompt .= "\n\n";
+            $systemPrompt .= "=== ANÁLISIS POST-LLAMADA ===\n";
+            $systemPrompt .= "IMPORTANTE: Esta es una llamada telefónica que YA TERMINÓ. Estás analizando la transcripción completa de la conversación.\n";
+            $systemPrompt .= "- NO puedes hacer preguntas al cliente porque la llamada ya terminó y nadie responderá.\n";
+            $systemPrompt .= "- Debes obtener TODA la información necesaria directamente de la conversación que ya ocurrió.\n";
+            $systemPrompt .= "- Si necesitas datos del cliente (nombre, teléfono, email, etc.), extráelos de lo que el cliente dijo durante la llamada.\n";
+            $systemPrompt .= "- Si falta información crítica, úsala de los datos disponibles en el contexto (phone_number, name, etc.).\n";
+            $systemPrompt .= "- Tu objetivo es procesar la solicitud del cliente usando las herramientas disponibles basándote en la información de la conversación.\n";
+            $systemPrompt .= "- NO generes respuestas para el cliente, solo procesa la solicitud usando las herramientas si es necesario.\n";
 
             // Generate AI response with full transcript and all tools
-            $userMessage = "Revisa la conversación de esta llamada telefónica y determina si necesitas usar alguna herramienta para ayudar al cliente o procesar su solicitud.";
+            $userMessage = "Analiza la transcripción completa de esta llamada telefónica que ya terminó. Determina si necesitas usar alguna herramienta para procesar la solicitud del cliente. Obtén toda la información necesaria de la conversación, no hagas preguntas porque nadie responderá.";
 
             Log::info('Processing call with tools (syncLatest)', [
                 'call_id' => $call->id,
