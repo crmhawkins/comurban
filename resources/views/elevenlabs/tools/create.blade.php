@@ -2,6 +2,10 @@
 
 @section('title', 'Crear Tool ElevenLabs')
 
+@push('styles')
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+@endpush
+
 @section('content')
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Header -->
@@ -473,8 +477,21 @@
                             </label>
                     `;
 
-                    // Si es body, usar textarea
-                    if (key === 'body') {
+                    // Si es body y es rich_text, usar editor WYSIWYG
+                    if (key === 'body' && field.type === 'rich_text') {
+                        fieldsHtml += `
+                            <div class="mb-2">
+                                <div id="${fieldId}_editor" style="min-height: 300px; background: white; border: 1px solid #d1d5db; border-radius: 0.5rem;"></div>
+                                <textarea
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    ${isRequired}
+                                    style="display: none;"
+                                >${(fieldValue || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Usa el editor para formatear el texto con negrita, cursiva, colores, tamaños, etc.</p>
+                        `;
+                    } else if (key === 'body') {
                         fieldsHtml += `
                             <textarea
                                 id="${fieldId}"
@@ -507,75 +524,6 @@
                     `;
                 }
 
-                // Añadir sección de estilos para email
-                if (selectedType === 'email') {
-                    fieldsHtml += `
-                        <div class="mt-6 pt-6 border-t border-gray-300">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Estilos del Correo</h3>
-                            <p class="text-sm text-gray-600 mb-4">Configura el formato visual del correo electrónico</p>
-                    `;
-
-                    // Generar campos de estilo
-                    const styleFields = ['body_font_family', 'body_font_size', 'body_font_weight', 'body_font_style', 'body_text_color', 'body_background_color', 'body_line_height'];
-                    for (const key of styleFields) {
-                        const field = configFields[key];
-                        if (!field) continue;
-
-                        const fieldId = `config_${key}`;
-                        const fieldValue = oldConfig[key] || field.default || '';
-                        const fieldLabel = field.label || key.replace('body_', '').replace(/_/g, ' ');
-
-                        fieldsHtml += `
-                            <div class="mb-4">
-                                <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-2">
-                                    ${fieldLabel}
-                                </label>
-                        `;
-
-                        if (field.type === 'select' && field.options) {
-                            fieldsHtml += `
-                                <select
-                                    id="${fieldId}"
-                                    name="config[${key}]"
-                                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                >
-                            `;
-                            for (const [value, label] of Object.entries(field.options)) {
-                                fieldsHtml += `
-                                    <option value="${value}" ${fieldValue === value ? 'selected' : ''}>${label}</option>
-                                `;
-                            }
-                            fieldsHtml += `</select>`;
-                        } else if (field.type === 'color') {
-                            fieldsHtml += `
-                                <input
-                                    type="color"
-                                    id="${fieldId}"
-                                    name="config[${key}]"
-                                    value="${fieldValue}"
-                                    class="block w-full h-10 px-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer"
-                                />
-                            `;
-                        } else {
-                            fieldsHtml += `
-                                <input
-                                    type="text"
-                                    id="${fieldId}"
-                                    name="config[${key}]"
-                                    value="${fieldValue}"
-                                    class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                    placeholder="${fieldLabel}"
-                                />
-                            `;
-                        }
-
-                        fieldsHtml += `
-                            </div>
-                        `;
-                    }
-
-                    fieldsHtml += `</div>`;
-                }
             }
 
             predefinedConfigFields.innerHTML = fieldsHtml;
@@ -737,5 +685,81 @@
     updateEmailAccountVisibility();
     generateConfigFields();
     toggleJsonFormat();
+
+    // Función global para inicializar Quill cuando se crea el editor
+    window.initQuillEditor = function(fieldId) {
+        const editorDiv = document.getElementById(fieldId + '_editor');
+        const textarea = document.getElementById(fieldId);
+        
+        if (!editorDiv || !textarea || typeof Quill === 'undefined') {
+            // Si Quill no está cargado, esperar un poco y reintentar
+            if (typeof Quill === 'undefined') {
+                setTimeout(function() {
+                    window.initQuillEditor(fieldId);
+                }, 100);
+            }
+            return;
+        }
+        
+        const quill = new Quill(editorDiv, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'size': ['small', false, 'large', 'huge'] }],
+                    [{ 'font': [] }],
+                    [{ 'align': [] }],
+                    ['blockquote', 'code-block'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+        
+        // Cargar contenido inicial si existe
+        if (textarea.value) {
+            try {
+                // Intentar parsear como HTML
+                quill.root.innerHTML = textarea.value;
+            } catch(e) {
+                // Si falla, usar como texto plano
+                quill.setText(textarea.value);
+            }
+        }
+        
+        // Sincronizar con textarea al cambiar contenido
+        quill.on('text-change', function() {
+            textarea.value = quill.root.innerHTML;
+        });
+        
+        // También sincronizar antes de enviar el formulario
+        const form = textarea.closest('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                textarea.value = quill.root.innerHTML;
+            });
+        }
+    };
+
+    // Inicializar editores Quill cuando se generen los campos
+    const originalGenerateConfigFields = generateConfigFields;
+    generateConfigFields = function() {
+        originalGenerateConfigFields();
+        // Esperar a que se rendericen los campos y luego inicializar Quill
+        setTimeout(function() {
+            const bodyEditor = document.getElementById('config_body_editor');
+            if (bodyEditor && typeof Quill !== 'undefined') {
+                window.initQuillEditor('config_body');
+            }
+        }, 100);
+    };
 </script>
+
+@push('scripts')
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+@endpush
 @endsection

@@ -2,6 +2,10 @@
 
 @section('title', 'Editar Tool')
 
+@push('styles')
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+@endpush
+
 @section('content')
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Header -->
@@ -506,8 +510,21 @@
                         </label>
                 `;
 
-                    // Si es body, usar textarea
-                    if (key === 'body') {
+                    // Si es body y es rich_text, usar editor WYSIWYG
+                    if (key === 'body' && field.type === 'rich_text') {
+                        fieldsHtml += `
+                            <div class="mb-2">
+                                <div id="${fieldId}_editor" style="min-height: 300px; background: white; border: 1px solid #d1d5db; border-radius: 0.5rem;"></div>
+                                <textarea
+                                    id="${fieldId}"
+                                    name="config[${key}]"
+                                    ${isRequired}
+                                    style="display: none;"
+                                >${(fieldValue || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Usa el editor para formatear el texto con negrita, cursiva, colores, tamaños, etc.</p>
+                        `;
+                    } else if (key === 'body') {
                     const textareaValue = fieldValue
                         .replace(/&/g, '&amp;')
                         .replace(/</g, '&lt;')
@@ -1294,5 +1311,94 @@
     } else if (enableFlowCheckbox?.checked) {
         addFlowStep();
     }
+
+    // Función global para inicializar Quill cuando se crea el editor
+    window.initQuillEditor = function(fieldId) {
+        const editorDiv = document.getElementById(fieldId + '_editor');
+        const textarea = document.getElementById(fieldId);
+        
+        if (!editorDiv || !textarea || typeof Quill === 'undefined') {
+            // Si Quill no está cargado, esperar un poco y reintentar
+            if (typeof Quill === 'undefined') {
+                setTimeout(function() {
+                    window.initQuillEditor(fieldId);
+                }, 100);
+            }
+            return;
+        }
+        
+        const quill = new Quill(editorDiv, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'size': ['small', false, 'large', 'huge'] }],
+                    [{ 'font': [] }],
+                    [{ 'align': [] }],
+                    ['blockquote', 'code-block'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+        
+        // Cargar contenido inicial si existe
+        if (textarea.value) {
+            try {
+                // Intentar parsear como HTML
+                quill.root.innerHTML = textarea.value;
+            } catch(e) {
+                // Si falla, usar como texto plano
+                quill.setText(textarea.value);
+            }
+        }
+        
+        // Sincronizar con textarea al cambiar contenido
+        quill.on('text-change', function() {
+            textarea.value = quill.root.innerHTML;
+        });
+        
+        // También sincronizar antes de enviar el formulario
+        const form = textarea.closest('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                textarea.value = quill.root.innerHTML;
+            });
+        }
+    };
+
+    // Inicializar editores Quill cuando se generen los campos
+    if (typeof generateConfigFields !== 'undefined') {
+        const originalGenerateConfigFields = generateConfigFields;
+        window.generateConfigFields = function() {
+            if (originalGenerateConfigFields) {
+                originalGenerateConfigFields();
+            }
+            // Esperar a que se rendericen los campos y luego inicializar Quill
+            setTimeout(function() {
+                const bodyEditor = document.getElementById('config_body_editor');
+                if (bodyEditor && typeof Quill !== 'undefined') {
+                    window.initQuillEditor('config_body');
+                }
+            }, 100);
+        };
+    }
+
+    // Inicializar Quill si ya existe el editor al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            const bodyEditor = document.getElementById('config_body_editor');
+            if (bodyEditor && typeof Quill !== 'undefined') {
+                window.initQuillEditor('config_body');
+            }
+        }, 500);
+    });
 </script>
+
+@push('scripts')
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+@endpush
 @endsection

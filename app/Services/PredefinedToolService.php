@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
@@ -51,15 +52,13 @@ class PredefinedToolService
             // Merge context for variable replacement (context takes priority, then parameters)
             $context = array_merge($parameters, $allContext ?? []);
             
-            // Obtener configuración de estilos
-            $fontFamily = $this->getConfigValue('body_font_family', $config, $parameters) ?? 'Arial, sans-serif';
-            $fontSize = $this->getConfigValue('body_font_size', $config, $parameters) ?? '14px';
-            $fontWeight = $this->getConfigValue('body_font_weight', $config, $parameters) ?? 'normal';
-            $fontStyle = $this->getConfigValue('body_font_style', $config, $parameters) ?? 'normal';
-            $textColor = $this->getConfigValue('body_text_color', $config, $parameters) ?? '#000000';
-            $backgroundColor = $this->getConfigValue('body_background_color', $config, $parameters) ?? '#ffffff';
-            $lineHeight = $this->getConfigValue('body_line_height', $config, $parameters) ?? '1.5';
-
+            // Asegurar que resúmenes estén en español en emails de alerta (evitar resúmenes en inglés)
+            foreach (['summary', 'conversation_summary', 'incident_summary'] as $key) {
+                if (!empty($context[$key]) && is_string($context[$key])) {
+                    $context[$key] = $this->translateToSpanishIfNeeded($context[$key]);
+                }
+            }
+            
             // Reemplazar variables en los valores (soporta @{{variable}} y {{variable}})
             if ($to) {
                 $to = $this->replaceVariables($to, $context);
@@ -71,16 +70,15 @@ class PredefinedToolService
                 $body = $this->replaceVariables($body, $context);
             }
             
-            // Aplicar estilos al cuerpo del correo
-            $body = $this->applyEmailStyles($body, [
-                'font_family' => $fontFamily,
-                'font_size' => $fontSize,
-                'font_weight' => $fontWeight,
-                'font_style' => $fontStyle,
-                'text_color' => $textColor,
-                'background_color' => $backgroundColor,
-                'line_height' => $lineHeight,
-            ]);
+            // Si el body es HTML (viene del editor WYSIWYG), usarlo directamente
+            // Si es texto plano, convertirlo a HTML básico
+            if (strip_tags($body) !== $body) {
+                // Ya es HTML, usar directamente pero envolver en estructura completa
+                $body = $this->wrapEmailHtml($body);
+            } else {
+                // Es texto plano, convertir a HTML básico
+                $body = $this->wrapEmailHtml(nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')));
+            }
 
             if (!$to) {
                 return [
@@ -187,6 +185,13 @@ class PredefinedToolService
             
             // Merge context for variable replacement (context takes priority, then parameters)
             $context = array_merge($parameters, $allContext ?? []);
+            
+            // Asegurar que resúmenes estén en español en alertas WhatsApp (evitar resúmenes en inglés)
+            foreach (['summary', 'conversation_summary', 'incident_summary'] as $key) {
+                if (!empty($context[$key]) && is_string($context[$key])) {
+                    $context[$key] = $this->translateToSpanishIfNeeded($context[$key]);
+                }
+            }
             
             // Reemplazar variables (soporta @{{variable}} y {{variable}})
             if ($to) {
@@ -525,33 +530,10 @@ class PredefinedToolService
     }
 
     /**
-     * Apply email styles to body text
-     * Converts plain text to HTML with configured styles
+     * Wrap email body in HTML structure for better email client compatibility
      */
-    protected function applyEmailStyles(string $body, array $styles): string
+    protected function wrapEmailHtml(string $body): string
     {
-        // Convert line breaks to <br> tags
-        $body = nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));
-        
-        // Build inline styles
-        $inlineStyles = sprintf(
-            'font-family: %s; font-size: %s; font-weight: %s; font-style: %s; color: %s; background-color: %s; line-height: %s;',
-            htmlspecialchars($styles['font_family'], ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($styles['font_size'], ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($styles['font_weight'], ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($styles['font_style'], ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($styles['text_color'], ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($styles['background_color'], ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars($styles['line_height'], ENT_QUOTES, 'UTF-8')
-        );
-        
-        // Wrap in styled div
-        $htmlBody = sprintf(
-            '<div style="%s; padding: 20px;">%s</div>',
-            $inlineStyles,
-            $body
-        );
-        
         // Wrap in full HTML structure for better email client compatibility
         $html = '<!DOCTYPE html>
 <html>
@@ -559,11 +541,60 @@ class PredefinedToolService
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 0; background-color: ' . htmlspecialchars($styles['background_color'], ENT_QUOTES, 'UTF-8') . ';">
-    ' . $htmlBody . '
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px;">
+        ' . $body . '
+    </div>
 </body>
 </html>';
         
         return $html;
+    }
+
+    /**
+     * Traduce el texto a español si parece estar en otro idioma (p. ej. inglés).
+     * Usado en emails de alerta para que el resumen de llamada/conversación salga en español.
+     */
+    protected function translateToSpanishIfNeeded(string $text): string
+    {
+        if (empty(trim($text)) || strlen(trim($text)) < 10) {
+            return $text;
+        }
+
+        $spanishIndicators = [' el ', ' la ', ' de ', ' que ', ' y ', ' en ', ' un ', ' es ', ' se ', ' no ', ' lo ', ' le ', ' da ', ' su ', ' por ', ' son ', ' con ', ' está', ' para', ' más', ' como', ' muy', ' todo', ' pero', ' hacer', ' puede', ' tiene', ' dice', ' será', ' están', ' estos', ' estas', ' desde', ' hasta', ' donde', ' cuando', ' cómo', ' qué', ' quién', ' cuál', ' gotera', ' agua', ' ascensor', ' llave', ' corte', ' luz', ' fuga'];
+
+        $textLower = mb_strtolower($text, 'UTF-8');
+        $spanishWordCount = 0;
+        foreach ($spanishIndicators as $indicator) {
+            if (mb_strpos($textLower, $indicator, 0, 'UTF-8') !== false) {
+                $spanishWordCount++;
+            }
+        }
+
+        if ($spanishWordCount >= 2) {
+            return $text;
+        }
+
+        try {
+            $response = Http::timeout(5)
+                ->get('https://api.mymemory.translated.net/get', [
+                    'q' => $text,
+                    'langpair' => 'en|es',
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['responseData']['translatedText'])) {
+                    $translated = trim($data['responseData']['translatedText']);
+                    if ($translated !== '' && mb_strtolower($translated, 'UTF-8') !== mb_strtolower(trim($text), 'UTF-8')) {
+                        return $translated;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::debug('PredefinedToolService: traducción a español omitida', ['error' => $e->getMessage()]);
+        }
+
+        return $text;
     }
 }

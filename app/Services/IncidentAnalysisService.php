@@ -75,6 +75,8 @@ class IncidentAnalysisService
             
             $prompt = "Analiza el siguiente mensaje o conversación y genera un resumen MUY CORTO (máximo 5-7 palabras) de la incidencia detectada.
 
+IMPORTANTE: Responde ÚNICAMENTE en español.
+
 Ejemplos de buenos resúmenes:
 - 'Gotera en apartamento'
 - 'Llave rota'
@@ -85,7 +87,7 @@ Ejemplos de buenos resúmenes:
 Mensaje/Conversación:
 {$fullContext}
 
-Responde SOLO con el resumen corto, sin explicaciones adicionales.";
+Responde SOLO con el resumen corto en español, sin explicaciones adicionales.";
 
             $result = $this->analyzeWithLocalAI($prompt);
             
@@ -130,10 +132,12 @@ Responde SOLO con el resumen corto, sin explicaciones adicionales.";
 - Los puntos clave mencionados
 - Cualquier información relevante
 
+IMPORTANTE: El resumen debe estar redactado ÚNICAMENTE en español.
+
 Conversación:
 {$conversationText}
 
-Resumen:";
+Resumen (en español):";
 
             $result = $this->analyzeWithLocalAI($prompt);
             
