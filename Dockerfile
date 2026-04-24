@@ -42,6 +42,9 @@ RUN printf 'server {\n\
         fastcgi_pass 127.0.0.1:9000;\n\
         fastcgi_index index.php;\n\
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;\n\
+        fastcgi_param HTTPS on;\n\
+        fastcgi_param HTTP_X_FORWARDED_PROTO https;\n\
+        fastcgi_param HTTP_X_FORWARDED_SSL on;\n\
         include fastcgi_params;\n\
     }\n\
     location ~ /\\.(?!well-known).* { deny all; }\n\
