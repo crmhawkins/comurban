@@ -47,6 +47,23 @@ class LocalAIService
         // Build prompt with conversation context
         $prompt = $this->buildPrompt($userMessage, $conversationHistory, $systemPrompt, $conversationContext);
 
+        // Quick connectivity check - avoid hanging if server unreachable
+        try {
+            $healthCheck = Http::withHeaders(['x-api-key' => $this->apiKey])
+                ->connectTimeout(3)
+                ->timeout(3)
+                ->head($this->url);
+        } catch (\Exception $e) {
+            Log::warning('Local AI: Server unreachable, skipping AI processing', [
+                'url' => $this->url,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'error' => 'AI server unreachable: ' . $e->getMessage(),
+            ];
+        }
+
         // Try primary model first (gpt-oss:120b-cloud)
         $primaryModel = 'gpt-oss:120b-cloud';
         $result = $this->tryModel($prompt, $primaryModel, $userMessage, $conversationHistory, $systemPrompt);
@@ -164,7 +181,8 @@ class LocalAIService
                 'x-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
-                ->timeout(60) // 60 seconds timeout
+                ->timeout(15)
+                ->connectTimeout(4)
                 ->post($this->url, [
                     'prompt' => $prompt,
                     'modelo' => $model,
