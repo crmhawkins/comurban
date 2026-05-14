@@ -61,19 +61,38 @@
                                 $transcriptLines = explode("\n\n", $transcript);
                             @endphp
                             @foreach($transcriptLines as $line)
-                                @if(str_starts_with($line, '[Agente]:'))
+                                @php
+                                    $isInterrupted = str_contains($line, '*(interrumpido)*');
+                                    $lineClean = str_replace(' *(interrumpido)*', '', $line);
+                                @endphp
+                                @if(str_starts_with($lineClean, '[Agente]:'))
                                     <div class="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
-                                        <p class="text-xs font-semibold text-blue-700 mb-1">Agente</p>
-                                        <p class="text-sm text-gray-800">{{ str_replace('[Agente]:', '', $line) }}</p>
+                                        <p class="text-xs font-semibold text-blue-700 mb-1">
+                                            Agente
+                                            @if($isInterrupted)
+                                                <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2">Interrumpido</span>
+                                            @endif
+                                        </p>
+                                        <p class="text-sm text-gray-800">{{ str_replace('[Agente]:', '', $lineClean) }}</p>
                                     </div>
-                                @elseif(str_starts_with($line, '[Usuario]:'))
+                                @elseif(str_starts_with($lineClean, '[Usuario]:'))
                                     <div class="bg-green-50 border-l-4 border-green-500 p-3 rounded">
-                                        <p class="text-xs font-semibold text-green-700 mb-1">Usuario</p>
-                                        <p class="text-sm text-gray-800">{{ str_replace('[Usuario]:', '', $line) }}</p>
+                                        <p class="text-xs font-semibold text-green-700 mb-1">
+                                            Usuario
+                                            @if($isInterrupted)
+                                                <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2">Interrumpido</span>
+                                            @endif
+                                        </p>
+                                        <p class="text-sm text-gray-800">{{ str_replace('[Usuario]:', '', $lineClean) }}</p>
                                     </div>
                                 @else
                                     <div class="bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
-                                        <p class="text-sm text-gray-800">{{ $line }}</p>
+                                        <p class="text-sm text-gray-800">
+                                            {{ $lineClean }}
+                                            @if($isInterrupted)
+                                                <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2">Interrumpido</span>
+                                            @endif
+                                        </p>
                                     </div>
                                 @endif
                             @endforeach

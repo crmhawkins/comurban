@@ -83,8 +83,10 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                         $role = $entry['role'] ?? 'unknown';
                         $message = $entry['message'] ?? $entry['original_message'] ?? '';
                         if ($message && trim($message)) {
+                            $interrupted = $entry['interrupted'] ?? false;
                             $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
-                            $transcriptLines[] = "[{$roleLabel}]: {$message}";
+                            $suffix = $interrupted ? ' *(interrumpido)*' : '';
+                            $transcriptLines[] = "[{$roleLabel}]: {$message}{$suffix}";
                         }
                     }
                     if (count($transcriptLines) > 0) {
@@ -104,8 +106,10 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                                     $role = $entry['role'] ?? 'unknown';
                                     $message = $entry['message'] ?? $entry['original_message'] ?? '';
                                     if ($message && trim($message)) {
+                                        $interrupted = $entry['interrupted'] ?? false;
                                         $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
-                                        $transcriptLines[] = "[{$roleLabel}]: {$message}";
+                                        $suffix = $interrupted ? ' *(interrumpido)*' : '';
+                                        $transcriptLines[] = "[{$roleLabel}]: {$message}{$suffix}";
                                     }
                                 }
                                 if (count($transcriptLines) > 0) {

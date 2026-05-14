@@ -136,8 +136,10 @@ class Call extends Model
                 $role = $entry['role'] ?? 'unknown';
                 $message = $entry['message'] ?? $entry['original_message'] ?? '';
                 if ($message) {
+                    $interrupted = $entry['interrupted'] ?? false;
                     $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
-                    $transcriptLines[] = "[{$roleLabel}]: {$message}";
+                    $suffix = $interrupted ? ' *(interrumpido)*' : '';
+                    $transcriptLines[] = "[{$roleLabel}]: {$message}{$suffix}";
                 }
             }
             return implode("\n\n", $transcriptLines);
