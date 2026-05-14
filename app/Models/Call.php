@@ -124,25 +124,27 @@ class Call extends Model
      */
     public function getFormattedTranscriptAttribute(): ?string
     {
-        // If transcript is already set, return it
-        if ($this->transcript) {
-            return $this->transcript;
-        }
-
-        // Try to extract from metadata
-        if (isset($this->metadata['transcript']) && is_array($this->metadata['transcript'])) {
+        // Si tenemos metadata con transcript, siempre reconstruir para capturar 'interrupted'
+        if (isset($this->metadata['transcript']) && is_array($this->metadata['transcript']) && count($this->metadata['transcript']) > 0) {
             $transcriptLines = [];
             foreach ($this->metadata['transcript'] as $entry) {
                 $role = $entry['role'] ?? 'unknown';
                 $message = $entry['message'] ?? $entry['original_message'] ?? '';
-                if ($message) {
-                    $interrupted = $entry['interrupted'] ?? false;
+                $interrupted = $entry['interrupted'] ?? false;
+                if ($message && trim($message)) {
                     $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
                     $suffix = $interrupted ? ' *(interrumpido)*' : '';
                     $transcriptLines[] = "[{$roleLabel}]: {$message}{$suffix}";
                 }
             }
-            return implode("\n\n", $transcriptLines);
+            if (count($transcriptLines) > 0) {
+                return implode("\n\n", $transcriptLines);
+            }
+        }
+
+        // Fallback: string directo del campo transcript (puede no tener markers de interrupted)
+        if ($this->transcript) {
+            return $this->transcript;
         }
 
         return null;
