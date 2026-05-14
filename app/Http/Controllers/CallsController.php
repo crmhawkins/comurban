@@ -92,6 +92,30 @@ class CallsController extends Controller
     }
 
     /**
+     * Proxy audio from ElevenLabs for a call
+     */
+    public function audio(string $id): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse
+    {
+        $call = \App\Models\Call::findOrFail($id);
+
+        if (!$call->elevenlabs_call_id) {
+            abort(404, 'No hay ID de ElevenLabs para esta llamada');
+        }
+
+        $elevenLabsService = new \App\Services\ElevenLabsService();
+        $result = $elevenLabsService->getAudio($call->elevenlabs_call_id);
+
+        if (!$result['success']) {
+            abort(404, 'Audio no disponible: ' . ($result['error'] ?? 'Error desconocido'));
+        }
+
+        return response($result['content'], 200)
+            ->header('Content-Type', $result['content_type'])
+            ->header('Accept-Ranges', 'bytes')
+            ->header('Cache-Control', 'private, max-age=3600');
+    }
+
+    /**
      * Sync latest conversation from ElevenLabs
      */
     public function syncLatest()
