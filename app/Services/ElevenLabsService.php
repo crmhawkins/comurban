@@ -205,6 +205,37 @@ class ElevenLabsService
     }
 
     /**
+     * Get audio for a conversation
+     */
+    public function getAudio(string $conversationId): array
+    {
+        try {
+            $apiKey = ConfigHelper::getElevenLabsConfig('api_key') ?? config('services.elevenlabs.api_key');
+            if (!$apiKey) {
+                return ['success' => false, 'error' => 'ElevenLabs API key not configured'];
+            }
+
+            $response = Http::withHeaders([
+                'xi-api-key' => $apiKey,
+            ])
+                ->timeout(30)
+                ->get("https://api.elevenlabs.io/v1/convai/conversations/{$conversationId}/audio");
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'content' => $response->body(),
+                    'content_type' => $response->header('Content-Type') ?: 'audio/mpeg',
+                ];
+            }
+
+            return ['success' => false, 'error' => 'ElevenLabs returned ' . $response->status()];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Make a generic API request
      */
     protected function makeRequest(string $url, string $method = 'GET', array $data = []): array
