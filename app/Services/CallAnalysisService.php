@@ -14,8 +14,8 @@ class CallAnalysisService
     public function __construct()
     {
         // Configuración para IA local - API personalizada de Hawkins
-        $this->apiUrl = config('services.local_ai.url', env('LOCAL_AI_URL', 'https://aiapi.hawkins.es/chat/chat'));
-        $this->apiKey = config('services.local_ai.api_key', env('LOCAL_AI_API_KEY', 'OllamaAPI_2024_K8mN9pQ2rS5tU7vW3xY6zA1bC4eF8hJ0lM'));
+        $this->apiUrl = config('services.local_ai.url', env('LOCAL_AI_URL', ''));
+        $this->apiKey = config('services.local_ai.api_key', env('LOCAL_AI_API_KEY', ''));
         $this->model = config('services.local_ai.model', env('LOCAL_AI_MODEL', 'gpt-oss:120b-cloud'));
     }
 
@@ -36,7 +36,7 @@ class CallAnalysisService
             $prompt = $this->buildPrompt($transcript);
             
             // Intentar análisis con IA local
-            $category = $this->analyzeWithLocalAI($prompt);
+            $category = $this->analyze($prompt);
             
             return $this->validateCategory($category);
         } catch (\Exception $e) {
@@ -69,17 +69,9 @@ Responde SOLO con una palabra: incidencia, consulta, pago o desconocido.";
     }
 
     /**
-     * Analiza usando IA local (API personalizada de Hawkins)
+     * Analiza usando la API de IA configurada
      */
-    protected function analyzeWithLocalAI(string $prompt): string
-    {
-        return $this->analyzeWithHawkinsAPI($prompt);
-    }
-
-    /**
-     * Analiza usando la API personalizada de Hawkins
-     */
-    protected function analyzeWithHawkinsAPI(string $prompt): string
+    protected function analyze(string $prompt): string
     {
         $headers = [
             'Content-Type' => 'application/json',

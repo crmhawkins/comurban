@@ -47,6 +47,7 @@ class ConfigHelper
 
         // Clear cache
         Cache::forget("whatsapp_config_{$key}");
+        Cache::forget('whatsapp_configs_all');
     }
 
     /**

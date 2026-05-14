@@ -14,8 +14,8 @@ class IncidentAnalysisService
     public function __construct()
     {
         // Configuración para IA local - API personalizada de Hawkins
-        $this->apiUrl = config('services.local_ai.url', env('LOCAL_AI_URL', 'https://aiapi.hawkins.es/chat/chat'));
-        $this->apiKey = config('services.local_ai.api_key', env('LOCAL_AI_API_KEY', 'OllamaAPI_2024_K8mN9pQ2rS5tU7vW3xY6zA1bC4eF8hJ0lM'));
+        $this->apiUrl = config('services.local_ai.url', env('LOCAL_AI_URL', ''));
+        $this->apiKey = config('services.local_ai.api_key', env('LOCAL_AI_API_KEY', ''));
         $this->model = config('services.local_ai.model', env('LOCAL_AI_MODEL', 'gpt-oss:120b-cloud'));
     }
 
@@ -219,7 +219,6 @@ Responde en formato JSON:
         }
 
         $response = Http::timeout(60)
-            ->withoutVerifying()
             ->withHeaders($headers)
             ->post($this->apiUrl, [
                 'prompt' => $prompt,

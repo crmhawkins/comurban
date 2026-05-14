@@ -548,10 +548,9 @@ class ProcessWebhookEvent implements ShouldQueue
                 'preview_url' => false,
             ];
 
-            // Send message synchronously
+            // Dispatch message to queue
             try {
-                $job = new SendWhatsAppMessage($outboundMessage, $payload);
-                $job->handle($whatsappService);
+                SendWhatsAppMessage::dispatch($outboundMessage, $payload);
                 $outboundMessage->refresh();
 
                 // Mark the incoming message as responded to

@@ -164,7 +164,6 @@ class LocalAIService
                 'x-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
-                ->withoutVerifying()
                 ->timeout(60) // 60 seconds timeout
                 ->post($this->url, [
                     'prompt' => $prompt,
@@ -431,7 +430,7 @@ class LocalAIService
             $shortcode = trim($shortcode, '_');
 
             // Buscar por shortcode normalizado comparando con el nombre normalizado de cada tool
-            $allTools = WhatsAppTool::active()->get();
+            $allTools = WhatsAppTool::active()->limit(100)->get();
             foreach ($allTools as $t) {
                 $toolShortcode = strtolower(preg_replace('/[^a-z0-9_]+/i', '_', $t->name));
                 $toolShortcode = preg_replace('/_+/', '_', $toolShortcode);
@@ -516,8 +515,7 @@ class LocalAIService
             $url = $this->replaceVariables($url, $allVariables);
 
             // Build request
-            $request = Http::withoutVerifying()
-                ->timeout($tool->timeout);
+            $request = Http::timeout($tool->timeout);
 
             // Add headers
             if (!empty($headers)) {

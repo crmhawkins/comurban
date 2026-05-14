@@ -51,10 +51,9 @@ class ElevenLabsWebhookController extends Controller
                 return response()->json(['error' => 'Invalid signature'], 401);
             }
 
-            // Process the webhook event immediately (synchronously)
+            // Dispatch webhook event to queue
             $eventType = $payload['event'] ?? $payload['type'] ?? $jsonPayload['event'] ?? $jsonPayload['type'] ?? 'unknown';
-            $job = new ProcessElevenLabsWebhook($payload, $eventType);
-            $job->handle($this->elevenLabsService);
+            ProcessElevenLabsWebhook::dispatch($payload, $eventType);
 
             Log::info('ElevenLabs Webhook procesado correctamente', [
                 'conversation_id' => $conversationId,

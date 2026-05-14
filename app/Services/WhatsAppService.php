@@ -104,7 +104,7 @@ class WhatsAppService
             'location' => [
                 'latitude' => $latitude,
                 'longitude' => $longitude,
-                'name' => $name,
+                'name' => $name ?? '',
             ],
         ];
 
@@ -176,7 +176,7 @@ class WhatsAppService
 
         try {
             $response = Http::withToken($this->accessToken)
-                ->withoutVerifying()
+                
                 ->get($url);
 
             if ($response->successful()) {
@@ -202,7 +202,7 @@ class WhatsAppService
             $url = "{$this->baseUrl}/{$this->apiVersion}/{$this->phoneNumberId}";
 
             $response = Http::withToken($this->accessToken)
-                ->withoutVerifying()
+                
                 ->get($url);
 
             if ($response->successful()) {
@@ -265,7 +265,7 @@ class WhatsAppService
             ]);
 
             $response = Http::withToken($this->accessToken)
-                ->withoutVerifying()
+                
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                 ])
@@ -321,7 +321,7 @@ class WhatsAppService
             $url = "{$this->baseUrl}/{$this->apiVersion}/{$appId}/subscriptions";
 
             $response = Http::withToken($this->accessToken)
-                ->withoutVerifying()
+                
                 ->get($url);
 
             $responseData = $response->json();
@@ -366,7 +366,7 @@ class WhatsAppService
 
             try {
                 $phoneResponse = Http::withToken($this->accessToken)
-                    ->withoutVerifying()
+                    
                     ->get($phoneNumberUrl);
 
                 if ($phoneResponse->successful()) {
@@ -507,7 +507,7 @@ class WhatsAppService
             ]);
             
             $response = Http::withToken($this->accessToken)
-                ->withoutVerifying()
+                
                 ->withBody($jsonPayload, 'application/json')
                 ->withHeaders([
                     'Content-Type' => 'application/json',
@@ -575,7 +575,7 @@ class WhatsAppService
             ]);
 
             $response = Http::withToken($this->accessToken)
-                ->withoutVerifying()
+                
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                 ])

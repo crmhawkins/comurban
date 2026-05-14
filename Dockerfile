@@ -52,6 +52,8 @@ RUN printf 'server {\n\
 
 RUN printf '[supervisord]\nnodaemon=true\nuser=root\n\n[program:php-fpm]\ncommand=php-fpm\nautostart=true\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g "daemon off;"\nautostart=true\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n' > /etc/supervisord.conf
 
+VOLUME ["/var/www/html/storage", "/var/www/html/bootstrap/cache"]
+
 EXPOSE 80
 
 CMD ["supervisord", "-c", "/etc/supervisord.conf"]

@@ -10,6 +10,7 @@ class WhatsAppTool extends Model
 
     protected $fillable = [
         'name',
+        'shortcode',
         'description',
         'type',
         'predefined_type',

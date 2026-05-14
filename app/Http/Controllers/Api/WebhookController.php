@@ -126,11 +126,12 @@ class WebhookController extends Controller
             ]);
 
             if (!$signatureValid) {
-                Log::warning('Webhook signature validation failed, but processing anyway', [
+                Log::warning('Webhook signature validation failed', [
                     'ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                     'webhook_event_id' => $webhookEvent->id,
                 ]);
+                return response()->json(['error' => 'Invalid signature'], 401);
             } else {
                 Log::debug('Webhook signature validated successfully', [
                     'webhook_event_id' => $webhookEvent->id,
@@ -143,22 +144,11 @@ class WebhookController extends Controller
                 'webhook_event_id' => $webhookEvent->id,
             ]);
 
-            try {
-                $job = new ProcessWebhookEvent($webhookEvent);
-                $job->handle(app(WhatsAppService::class));
+            ProcessWebhookEvent::dispatch($webhookEvent);
 
-                Log::info('Webhook processed successfully (sync)', [
-                    'webhook_event_id' => $webhookEvent->id,
-                ]);
-            } catch (\Exception $e) {
-                Log::error('Error processing webhook synchronously', [
-                    'webhook_event_id' => $webhookEvent->id,
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-            }
+            Log::info('Webhook queued for processing', [
+                'webhook_event_id' => $webhookEvent->id,
+            ]);
 
             return response('OK', 200);
         } catch (\Exception $e) {
@@ -267,18 +257,9 @@ class WebhookController extends Controller
             'json_keys' => $isValidJson && is_array($jsonCheck) ? array_keys($jsonCheck) : null,
         ]);
 
-        // Log App Secret info (without exposing the actual secret)
-        // Also calculate a test signature to verify the secret is being used correctly
-        $testPayload = 'test';
-        $testSignature = 'sha256=' . hash_hmac('sha256', $testPayload, $appSecret);
-
         Log::debug('WhatsApp webhook App Secret info', [
             'app_secret_configured' => !empty($appSecret),
             'app_secret_length' => strlen($appSecret),
-            'app_secret_first_char' => $appSecret ? substr($appSecret, 0, 1) : null,
-            'app_secret_last_char' => $appSecret ? substr($appSecret, -1) : null,
-            'app_secret_middle_chars' => $appSecret && strlen($appSecret) > 4 ? substr($appSecret, 10, 5) : null,
-            'test_signature_for_test_payload' => $testSignature,
             'app_secret_source' => ConfigHelper::getWhatsAppConfig('app_secret') ? 'database' : (config('services.whatsapp.app_secret') ? 'config' : 'none'),
         ]);
 

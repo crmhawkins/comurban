@@ -43,7 +43,7 @@ class ElevenLabsService
                 'xi-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
-                ->withoutVerifying()
+                
                 ->get($url);
 
             if ($response->successful()) {
@@ -82,7 +82,7 @@ class ElevenLabsService
                 'xi-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
-                ->withoutVerifying()
+                
                 ->get($url);
 
             if ($response->successful()) {
@@ -176,7 +176,7 @@ class ElevenLabsService
                 'xi-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
-                ->withoutVerifying()
+                
                 ->get($url);
 
             if ($response->successful()) {
@@ -219,8 +219,7 @@ class ElevenLabsService
             $request = Http::withHeaders([
                 'xi-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
-            ])
-                ->withoutVerifying();
+            ]);
 
             if ($method === 'GET') {
                 $response = $request->get($url, $data);
