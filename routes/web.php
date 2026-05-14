@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
     // Rutas de Llamadas
     Route::prefix('calls')->name('calls.')->group(function () {
         Route::get('/', [\App\Http\Controllers\CallsController::class, 'index'])->name('index');
+        Route::get('/{id}/audio', [\App\Http\Controllers\CallsController::class, 'audio'])->name('audio');
         Route::get('/{id}', [\App\Http\Controllers\CallsController::class, 'show'])->name('show');
         Route::post('/sync-latest', [\App\Http\Controllers\CallsController::class, 'syncLatest'])->name('sync-latest');
     });
