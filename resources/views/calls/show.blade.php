@@ -179,22 +179,20 @@
             </div>
 
             <!-- Grabación -->
-            @if($call->recording_url)
+            @if($call->elevenlabs_call_id || $call->recording_url)
                 <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">Grabación</h3>
-                    <audio controls class="w-full">
-                        <source src="{{ $call->recording_url }}" type="audio/mpeg">
-                        Tu navegador no soporta el elemento de audio.
+                    <audio controls class="w-full mt-2" preload="none">
+                        <source src="{{ route('calls.audio', $call->id) }}" type="audio/mpeg">
+                        Tu navegador no soporta el reproductor de audio.
                     </audio>
-                    <a
-                        href="{{ $call->recording_url }}"
-                        target="_blank"
-                        class="mt-3 inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 text-sm font-medium cursor-pointer"
-                    >
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    <a href="{{ route('calls.audio', $call->id) }}"
+                       download="llamada-{{ $call->elevenlabs_call_id ?? $call->id }}.mp3"
+                       class="mt-2 inline-flex items-center text-sm text-blue-600 hover:text-blue-800">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        Descargar
+                        Descargar grabación
                     </a>
                 </div>
             @endif
