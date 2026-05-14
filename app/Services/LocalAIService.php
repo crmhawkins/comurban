@@ -34,7 +34,7 @@ class LocalAIService
      */
     public function generateResponse(string $userMessage, array $conversationHistory = [], ?string $systemPrompt = null, ?array $conversationContext = null, $conversation = null): array
     {
-        if (!$this->url || !$this->apiKey) {
+        if (!$this->url) {
             return [
                 'success' => false,
                 'error' => 'Local AI service not configured',
@@ -49,10 +49,10 @@ class LocalAIService
 
         // Quick connectivity check - avoid hanging if server unreachable
         try {
-            $healthCheck = Http::withHeaders(['x-api-key' => $this->apiKey])
-                ->connectTimeout(3)
-                ->timeout(3)
-                ->head($this->url);
+            $baseUrl = rtrim($this->url, '/');
+            // For Ollama: /api/generate → base is /api, tags endpoint is /api/tags
+            $healthUrl = preg_replace('/\/api\/generate.*$/', '/api/tags', $baseUrl);
+            $healthCheck = Http::connectTimeout(3)->timeout(3)->get($healthUrl);
         } catch (\Exception $e) {
             Log::warning('Local AI: Server unreachable, skipping AI processing', [
                 'url' => $this->url,
@@ -178,21 +178,21 @@ class LocalAIService
             ]);
 
             $response = Http::withHeaders([
-                'x-api-key' => $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
-                ->timeout(15)
+                ->timeout(90)
                 ->connectTimeout(4)
                 ->post($this->url, [
+                    'model' => $model,
                     'prompt' => $prompt,
-                    'modelo' => $model,
+                    'stream' => false,
                 ]);
 
             if ($response->successful()) {
                 $data = $response->json();
 
                 // Extract response from the API response structure
-                $aiResponse = $data['respuesta'] ?? $data['message'] ?? $data['response'] ?? null;
+                $aiResponse = $data['response'] ?? $data['respuesta'] ?? $data['message'] ?? null;
 
                 if (!$aiResponse && isset($data['metadata']['message']['content'])) {
                     $aiResponse = $data['metadata']['message']['content'];
