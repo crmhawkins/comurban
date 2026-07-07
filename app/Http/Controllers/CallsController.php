@@ -203,13 +203,16 @@ class CallsController extends Controller
             }
 
             // Extract timestamps - ElevenLabs uses start_time_unix_secs in metadata
+            // createFromTimestamp defaults to UTC; convert to app timezone so datetime
+            // values match local wall-clock time when persisted.
+            $appTz = config('app.timezone');
             $startedAt = null;
             if (isset($conversation['metadata']['start_time_unix_secs'])) {
-                $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['metadata']['start_time_unix_secs']);
+                $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['metadata']['start_time_unix_secs'], $appTz);
             } elseif (isset($conversation['start_time_unix_secs'])) {
-                $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['start_time_unix_secs']);
+                $startedAt = \Carbon\Carbon::createFromTimestamp($conversation['start_time_unix_secs'], $appTz);
             } elseif (isset($conversation['started_at'])) {
-                $startedAt = \Carbon\Carbon::parse($conversation['started_at']);
+                $startedAt = \Carbon\Carbon::parse($conversation['started_at'])->setTimezone($appTz);
             }
 
             $endedAt = null;
@@ -217,11 +220,11 @@ class CallsController extends Controller
             if ($startedAt && isset($conversation['metadata']['call_duration_secs'])) {
                 $endedAt = $startedAt->copy()->addSeconds($conversation['metadata']['call_duration_secs']);
             } elseif (isset($conversation['metadata']['end_time_unix_secs'])) {
-                $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['metadata']['end_time_unix_secs']);
+                $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['metadata']['end_time_unix_secs'], $appTz);
             } elseif (isset($conversation['end_time_unix_secs'])) {
-                $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['end_time_unix_secs']);
+                $endedAt = \Carbon\Carbon::createFromTimestamp($conversation['end_time_unix_secs'], $appTz);
             } elseif (isset($conversation['ended_at'])) {
-                $endedAt = \Carbon\Carbon::parse($conversation['ended_at']);
+                $endedAt = \Carbon\Carbon::parse($conversation['ended_at'])->setTimezone($appTz);
             }
 
             // Calculate duration
