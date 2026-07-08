@@ -137,6 +137,15 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     };
                 }
 
+                // Skip if no useful data — likely a conversation_initiated event (call not ended yet)
+                if ($status === 'pending' && !$transcript) {
+                    Log::info('ElevenLabs webhook: evento ignorado (llamada sin transcript ni estado final)', [
+                        'conversation_id' => $conversationId,
+                        'elevenlabs_status' => $conversation['status'] ?? 'sin-status',
+                    ]);
+                    return;
+                }
+
                 // Extract timestamps - ElevenLabs uses start_time_unix_secs in metadata
                 // Carbon::createFromTimestamp defaults to UTC; convert to the app timezone
                 // so stored datetime values match the user's local wall-clock time.
