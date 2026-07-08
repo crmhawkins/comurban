@@ -56,6 +56,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{id}/audio', [\App\Http\Controllers\CallsController::class, 'audio'])->name('audio');
         Route::get('/{id}', [\App\Http\Controllers\CallsController::class, 'show'])->name('show');
         Route::post('/sync-latest', [\App\Http\Controllers\CallsController::class, 'syncLatest'])->name('sync-latest');
+        Route::post('/sync-pending', [\App\Http\Controllers\CallsController::class, 'syncPending'])->name('sync-pending');
     });
 
     // Rutas de ElevenLabs
