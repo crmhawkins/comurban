@@ -116,6 +116,83 @@ class CallsController extends Controller
     }
 
     /**
+     * Re-fetch all pending calls from ElevenLabs and update their status/transcript
+     */
+    public function syncPending()
+    {
+        try {
+            $pendingCalls = Call::where('status', 'pending')->get();
+
+            if ($pendingCalls->isEmpty()) {
+                return back()->with('success', 'No hay llamadas pendientes que sincronizar.');
+            }
+
+            $updated = 0;
+            $errors = 0;
+
+            foreach ($pendingCalls as $call) {
+                if (!$call->elevenlabs_call_id) {
+                    continue;
+                }
+
+                $conversationData = $this->elevenLabsService->getConversation($call->elevenlabs_call_id);
+
+                if (!$conversationData['success']) {
+                    $errors++;
+                    continue;
+                }
+
+                $conversation = $conversationData['data'];
+
+                $status = 'pending';
+                if (isset($conversation['status'])) {
+                    $status = match($conversation['status']) {
+                        'completed', 'ended', 'done', 'COMPLETED', 'ENDED', 'DONE' => 'completed',
+                        'in_progress', 'active', 'IN_PROGRESS', 'ACTIVE' => 'in_progress',
+                        'failed', 'error', 'FAILED', 'ERROR' => 'failed',
+                        default => 'pending',
+                    };
+                }
+
+                if ($status === 'pending') {
+                    continue;
+                }
+
+                $transcript = null;
+                if (isset($conversation['transcript']) && is_array($conversation['transcript'])) {
+                    $transcriptLines = [];
+                    foreach ($conversation['transcript'] as $entry) {
+                        $role = $entry['role'] ?? 'unknown';
+                        $message = $entry['message'] ?? $entry['original_message'] ?? '';
+                        if ($message && trim($message)) {
+                            $interrupted = $entry['interrupted'] ?? false;
+                            $roleLabel = $role === 'agent' ? 'Agente' : ($role === 'user' ? 'Usuario' : ucfirst($role));
+                            $suffix = $interrupted ? ' *(interrumpido)*' : '';
+                            $transcriptLines[] = "[{$roleLabel}]: {$message}{$suffix}";
+                        }
+                    }
+                    if (count($transcriptLines) > 0) {
+                        $transcript = implode("\n\n", $transcriptLines);
+                    }
+                }
+
+                $call->update([
+                    'status' => $status,
+                    'transcript' => $transcript,
+                    'metadata' => $conversation,
+                ]);
+
+                $updated++;
+            }
+
+            return back()->with('success', "Resync completado: {$updated} llamadas actualizadas" . ($errors > 0 ? ", {$errors} errores." : '.'));
+        } catch (\Exception $e) {
+            Log::error('Error en syncPending', ['error' => $e->getMessage()]);
+            return back()->with('error', 'Error al sincronizar pendientes: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Sync latest conversation from ElevenLabs
      */
     public function syncLatest()
