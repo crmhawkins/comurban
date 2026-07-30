@@ -261,8 +261,9 @@ class CallsController extends Controller
                 }
             }
 
-            // Extract phone number from user_id (this is the phone number in ElevenLabs)
-            $phoneNumber = $conversation['user_id'] 
+            // Extract phone number - ElevenLabs stores it in metadata.phone_call.external_number
+            $phoneNumber = $conversation['metadata']['phone_call']['external_number']
+                ?? $conversation['user_id'] 
                 ?? $conversation['phone_number'] 
                 ?? $conversation['metadata']['phone_number'] 
                 ?? $conversation['from'] 
