@@ -216,9 +216,16 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     $summaryText = TranslationHelper::translateToSpanish($rawSummary);
                 }
 
-                // Extract client name from transcript
+                // Client name: the one ElevenLabs extracted from the call when its analysis is available
+                // (it is only filled in if the caller actually said it); transcript heuristics otherwise.
                 $callProcessingService = new CallProcessingService();
-                $clientName = $callProcessingService->extractClientNameFromTranscript($transcript, $phoneNumber);
+                $collected = $conversation['analysis']['data_collection_results'] ?? null;
+                if (is_array($collected) && array_key_exists('nombre_completo', $collected)) {
+                    $collectedName = $collected['nombre_completo']['value'] ?? null;
+                    $clientName = is_string($collectedName) && trim($collectedName) !== '' ? trim($collectedName) : 'Desconocido';
+                } else {
+                    $clientName = $callProcessingService->extractClientNameFromTranscript($transcript, $phoneNumber);
+                }
 
                 // Format summary with client info
                 $summary = $this->formatCallSummary($clientName, $phoneNumber, $startedAt, $summaryText);
