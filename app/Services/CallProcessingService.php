@@ -211,6 +211,12 @@ class CallProcessingService
 
         $tipo = preg_replace('/[^a-z_]/', '', str_replace([' ', '-'], '_', mb_strtolower($value('tipo_gestion'))));
 
+        // "Devolución de llamada" solo tiene sentido si la transferencia no llegó a completarse.
+        // Si la herramienta transfirió con éxito (p. ej. alguien que devuelve una llamada perdida), es una transferida.
+        if ($tipo === 'devolucion_llamada' && ($this->transferFromToolCalls($call)['is_transferred'] ?? false)) {
+            $tipo = 'transferida';
+        }
+
         if (in_array($tipo, self::GESTIONES_SIN_AVISO, true)) {
             Log::info('Aviso de llamada: gestión sin aviso', ['call_id' => $call->id, 'tipo_gestion' => $tipo]);
             return true;
