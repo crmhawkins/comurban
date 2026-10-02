@@ -25,6 +25,12 @@ class ProcessElevenLabsWebhook implements ShouldQueue
     public $tries = 3;
 
     /**
+     * El post-proceso con IA local puede tardar más de un minuto por llamada.
+     * Debe ser menor que el retry_after de la cola (config/queue.php).
+     */
+    public $timeout = 600;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(
@@ -40,7 +46,9 @@ class ProcessElevenLabsWebhook implements ShouldQueue
     public function handle(ElevenLabsService $elevenLabsService): void
     {
         try {
-            DB::transaction(function () use ($elevenLabsService) {
+            // La llamada se guarda y se confirma PRIMERO. El post-proceso (avisos, incidencias,
+            // transferencia) va fuera de la transacción: si falla o tarda, la llamada ya está registrada.
+            $saved = DB::transaction(function () use ($elevenLabsService) {
                 // Extract conversation ID from payload
                 // ElevenLabs webhook structure: { type, event_timestamp, data: { conversation_id, ... } }
                 $conversationId = $this->payload['data']['conversation_id']
@@ -51,7 +59,7 @@ class ProcessElevenLabsWebhook implements ShouldQueue
 
                 if (!$conversationId) {
                     Log::warning('ElevenLabs webhook: falta conversation_id');
-                    return;
+                    return null;
                 }
 
                 // Get conversation details from ElevenLabs API
@@ -62,7 +70,7 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                         'conversation_id' => $conversationId,
                         'error' => $conversationData['error'] ?? 'Unknown error',
                     ]);
-                    return;
+                    return null;
                 }
 
                 $conversation = $conversationData['data'];
@@ -144,7 +152,7 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                         'conversation_id' => $conversationId,
                         'elevenlabs_status' => $conversation['status'] ?? 'sin-status',
                     ]);
-                    return;
+                    return null;
                 }
 
                 // Extract timestamps - ElevenLabs uses start_time_unix_secs in metadata
@@ -253,42 +261,57 @@ class ProcessElevenLabsWebhook implements ShouldQueue
                     'category' => $category,
                 ]);
 
-                // Create incident if call is categorized as "incidencia"
-                if ($category === 'incidencia' && $transcript) {
-                    try {
-                        $callProcessingService->detectAndCreateIncidentFromCall($call, $transcript, $phoneNumber);
-                    } catch (\Exception $e) {
-                        Log::error('Error creating incident from call', [
-                            'call_id' => $call->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
-
-                // Process tools for all completed calls with transcript
-                if ($status === 'completed' && $transcript) {
-                    try {
-                        $callProcessingService->processCallTools($call, $transcript, $phoneNumber, $category);
-                    } catch (\Exception $e) {
-                        Log::error('Error processing tools for call', [
-                            'call_id' => $call->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
-
-                // Detect transfer after processing tools
-                if ($transcript) {
-                    try {
-                        $callProcessingService->detectAndSaveTransfer($call, $transcript);
-                    } catch (\Exception $e) {
-                        Log::error('Error detecting transfer for call', [
-                            'call_id' => $call->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
+                return compact('call', 'transcript', 'phoneNumber', 'category', 'status', 'callProcessingService');
             });
+
+            if (!$saved) {
+                return;
+            }
+
+            [
+                'call' => $call,
+                'transcript' => $transcript,
+                'phoneNumber' => $phoneNumber,
+                'category' => $category,
+                'status' => $status,
+                'callProcessingService' => $callProcessingService,
+            ] = $saved;
+
+            // Create incident if call is categorized as "incidencia"
+            if ($category === 'incidencia' && $transcript) {
+                try {
+                    $callProcessingService->detectAndCreateIncidentFromCall($call, $transcript, $phoneNumber);
+                } catch (\Exception $e) {
+                    Log::error('Error creating incident from call', [
+                        'call_id' => $call->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Process tools for all completed calls with transcript
+            if ($status === 'completed' && $transcript) {
+                try {
+                    $callProcessingService->processCallTools($call, $transcript, $phoneNumber, $category);
+                } catch (\Exception $e) {
+                    Log::error('Error processing tools for call', [
+                        'call_id' => $call->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Detect transfer after processing tools
+            if ($transcript) {
+                try {
+                    $callProcessingService->detectAndSaveTransfer($call, $transcript);
+                } catch (\Exception $e) {
+                    Log::error('Error detecting transfer for call', [
+                        'call_id' => $call->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         } catch (\Exception $e) {
             Log::error('ElevenLabs webhook: error al procesar', [
                 'error' => $e->getMessage(),

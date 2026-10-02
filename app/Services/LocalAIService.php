@@ -24,7 +24,7 @@ class LocalAIService
 
     /**
      * Generate AI response based on user message and conversation context
-     * Uses fallback: tries gpt-oss:120b-cloud first, then qwen3:latest if it fails
+     * Uses fallback: tries the configured model first, then services.local_ai.fallback_model if it fails
      * Supports tool usage: if AI requests a tool, executes it and generates final response
      * @param string $userMessage
      * @param array $conversationHistory
@@ -64,11 +64,11 @@ class LocalAIService
             ];
         }
 
-        // Try primary model first (gpt-oss:120b-cloud)
-        $primaryModel = 'gpt-oss:120b-cloud';
+        // Try primary model first (cloud; can run out of monthly quota)
+        $primaryModel = $this->model;
         $result = $this->tryModel($prompt, $primaryModel, $userMessage, $conversationHistory, $systemPrompt);
 
-        // If primary model fails, try fallback (qwen3:latest)
+        // If primary model fails, try the local fallback model
         if (!$result['success']) {
             $isRateLimitError = $this->isRateLimitError($result);
 
@@ -78,7 +78,7 @@ class LocalAIService
                 'is_rate_limit' => $isRateLimitError,
             ]);
 
-            $fallbackModel = 'qwen3:latest';
+            $fallbackModel = config('services.local_ai.fallback_model', 'gpt-oss:20b');
             $result = $this->tryModel($prompt, $fallbackModel, $userMessage, $conversationHistory, $systemPrompt);
 
             if ($result['success']) {
@@ -180,7 +180,7 @@ class LocalAIService
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
             ])
-                ->timeout(90)
+                ->timeout(150)
                 ->connectTimeout(4)
                 ->post($this->url, [
                     'model' => $model,

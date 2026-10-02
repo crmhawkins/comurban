@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\Incident;
 use App\Services\CallAnalysisService;
 use App\Services\IncidentAnalysisService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class CallProcessingService
@@ -65,6 +66,12 @@ class CallProcessingService
      */
     public function processCallTools(Call $call, string $transcript, ?string $phoneNumber, string $category): void
     {
+        // Vía principal: aviso determinista a partir de los datos que ElevenLabs extrae de la llamada.
+        // Solo si ese análisis no viene en la conversación se recurre a la IA local (vía antigua).
+        if ($this->sendAvisoFromAnalysis($call, $phoneNumber)) {
+            return;
+        }
+
         try {
             $contact = null;
             if ($phoneNumber) {
@@ -165,6 +172,185 @@ class CallProcessingService
     }
 
     /**
+     * Gestiones que generan aviso por correo, según el campo "tipo_gestion" que ElevenLabs
+     * extrae de cada llamada (data collection del agente). 'tool' es la herramienta de correo
+     * de la que se toman destinatario y cuenta de envío, para que sigan siendo editables desde el panel.
+     */
+    protected const AVISOS_POR_GESTION = [
+        'garaje' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Solicitud de alquiler de garaje', 'titulo' => 'Solicitud de alquiler de garaje'],
+        'incidencia_sin_app' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Incidencia Inquilino', 'titulo' => 'Incidencia de inquilino (no pudo registrarla en Tu Comunidad)'],
+        'documentacion' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Solicitud de documentación', 'titulo' => 'Solicitud de documentación o trámite administrativo'],
+        'devolucion_llamada' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Devolución de llamada', 'titulo' => 'Devolución de llamada (la transferencia a la oficina no se completó)'],
+        'urgencia_transferida' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Urgencia transferida a la oficina', 'titulo' => 'Urgencia transferida a la oficina (constancia)'],
+        'consulta' => ['tool' => 'enviar_email_avisos', 'asunto' => 'Consulta registrada', 'titulo' => 'Consulta registrada'],
+    ];
+
+    /**
+     * Gestiones que no generan aviso: la llamada queda solo en el panel.
+     */
+    protected const GESTIONES_SIN_AVISO = ['transferida', 'informativa', 'sin_gestion'];
+
+    /**
+     * Envía el aviso de una llamada a partir del análisis de ElevenLabs, sin IA propia.
+     *
+     * @return bool true si la llamada queda resuelta por esta vía (aviso enviado o no hacía falta);
+     *              false si no hay análisis utilizable y debe decidir la vía antigua.
+     */
+    protected function sendAvisoFromAnalysis(Call $call, ?string $phoneNumber): bool
+    {
+        $results = $call->metadata['analysis']['data_collection_results'] ?? null;
+        if (!is_array($results)) {
+            return false;
+        }
+
+        $value = function (string $key) use ($results): string {
+            $v = $results[$key]['value'] ?? null;
+            $v = is_scalar($v) ? trim((string) $v) : '';
+            return in_array(mb_strtolower($v), ['', 'null', 'none', 'n/a', 'desconocido', 'no indicado'], true) ? '' : $v;
+        };
+
+        $tipo = preg_replace('/[^a-z_]/', '', str_replace([' ', '-'], '_', mb_strtolower($value('tipo_gestion'))));
+
+        if (in_array($tipo, self::GESTIONES_SIN_AVISO, true)) {
+            Log::info('Aviso de llamada: gestión sin aviso', ['call_id' => $call->id, 'tipo_gestion' => $tipo]);
+            return true;
+        }
+
+        $aviso = self::AVISOS_POR_GESTION[$tipo] ?? null;
+        if (!$aviso) {
+            return false;
+        }
+
+        // Un solo aviso por llamada aunque el webhook se reciba o reintente varias veces
+        $lockKey = 'aviso_llamada_' . $call->id;
+        if (!Cache::add($lockKey, now()->toDateTimeString(), now()->addDays(30))) {
+            Log::info('Aviso de llamada: ya enviado, se omite', ['call_id' => $call->id, 'tipo_gestion' => $tipo]);
+            return true;
+        }
+
+        $to = null;
+
+        try {
+            $tool = \App\Models\WhatsAppTool::where('name', $aviso['tool'])->where('active', true)->first();
+            $to = $tool ? ($tool->config['to']['value'] ?? null) : null;
+            if (!$tool || !$to) {
+                throw new \RuntimeException("Herramienta de correo '{$aviso['tool']}' no disponible o sin destinatario");
+            }
+
+            $nombre = $value('nombre_completo');
+            $sinDato = 'No indicado';
+            $resumen = trim((string) ($call->metadata['analysis']['transcript_summary'] ?? ''));
+
+            $body = "{$aviso['titulo']}\n\n"
+                . 'Nombre: ' . ($nombre ?: $sinDato) . "\n"
+                . 'Teléfono de contacto: ' . ($value('telefono_contacto') ?: $sinDato) . "\n"
+                . 'Teléfono desde el que llamó: ' . ($phoneNumber ?: $sinDato) . "\n"
+                . 'Dirección de la vivienda: ' . ($value('direccion_vivienda') ?: $sinDato) . "\n"
+                . 'Detalle: ' . ($value('detalle') ?: $sinDato) . "\n"
+                . 'Fecha y hora de la llamada: ' . ($call->started_at ? $call->started_at->format('d/m/Y H:i') : now()->format('d/m/Y H:i')) . "\n\n"
+                . "Resumen de la llamada:\n" . ($resumen ?: 'Sin resumen disponible.');
+
+            // Hasta tres intentos: un fallo puntual del servidor de correo no debe dejar la llamada sin aviso
+            $result = ['success' => false];
+            for ($attempt = 1; $attempt <= 3 && !($result['success'] ?? false); $attempt++) {
+                if ($attempt > 1) {
+                    sleep(5 * ($attempt - 1));
+                }
+                $result = (new PredefinedToolService())->execute(
+                    'email',
+                    [
+                        'to' => $to,
+                        'subject' => $aviso['asunto'] . ($nombre ? ' | ' . $nombre : ''),
+                        'body' => $body,
+                    ],
+                    null,
+                    $tool->email_account_id,
+                    ['call_id' => (string) $call->id]
+                );
+            }
+
+            if (!($result['success'] ?? false)) {
+                throw new \RuntimeException($result['error'] ?? 'Error desconocido al enviar el correo');
+            }
+
+            $this->saveAvisoState($call, $tipo, $to, true);
+            Log::info('Aviso de llamada enviado', ['call_id' => $call->id, 'tipo_gestion' => $tipo, 'tool' => $aviso['tool']]);
+        } catch (\Throwable $e) {
+            // Se libera la marca para que un reproceso de la llamada pueda volver a intentarlo,
+            // y el fallo queda anotado en la propia llamada para que se vea en el seguimiento.
+            Cache::forget($lockKey);
+            $this->saveAvisoState($call, $tipo, $to, false, $e->getMessage());
+            Log::error('Aviso de llamada: error al enviar', [
+                'call_id' => $call->id,
+                'tipo_gestion' => $tipo,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Deja anotado en la llamada qué aviso le corresponde y si se envió.
+     */
+    protected function saveAvisoState(Call $call, string $tipo, ?string $to, bool $sent, ?string $error = null): void
+    {
+        try {
+            $state = $call->call_state ?? [];
+            $state['aviso'] = [
+                'tipo_gestion' => $tipo,
+                'destinatario' => $to,
+                'enviado' => $sent,
+                'fecha' => now()->toDateTimeString(),
+                'error' => $error,
+            ];
+            $call->update(['call_state' => $state]);
+        } catch (\Throwable $e) {
+            Log::warning('Aviso de llamada: no se pudo anotar el estado', ['call_id' => $call->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Lee de la conversación de ElevenLabs si la herramienta de transferencia se ejecutó con éxito.
+     *
+     * @return array|null null si la conversación no trae las llamadas a herramientas (decide la vía antigua)
+     */
+    protected function transferFromToolCalls(Call $call): ?array
+    {
+        $entries = $call->metadata['transcript'] ?? null;
+        if (!is_array($entries) || empty($entries)) {
+            return null;
+        }
+
+        $number = null;
+        $called = false;
+        $failed = false; // resultado del último intento de transferencia
+
+        foreach ($entries as $entry) {
+            foreach (($entry['tool_calls'] ?? []) ?: [] as $toolCall) {
+                if (($toolCall['tool_name'] ?? '') === 'transfer_to_number') {
+                    $called = true;
+                    $params = json_decode($toolCall['params_as_json'] ?? '', true);
+                    $number = $params['transfer_number'] ?? $number;
+                }
+            }
+            foreach (($entry['tool_results'] ?? []) ?: [] as $toolResult) {
+                if (($toolResult['tool_name'] ?? '') === 'transfer_to_number') {
+                    $failed = !empty($toolResult['is_error']);
+                }
+            }
+        }
+
+        $reason = (string) ($call->metadata['metadata']['termination_reason'] ?? '');
+
+        return [
+            'is_transferred' => ($called && !$failed) || stripos($reason, 'transferred to number') !== false,
+            'transferred_to' => $number,
+            'transfer_type' => 'phone',
+        ];
+    }
+
+    /**
      * Detect and create incident from call categorized as "incidencia"
      */
     public function detectAndCreateIncidentFromCall(Call $call, string $transcript, ?string $phoneNumber): void
@@ -244,8 +430,12 @@ class CallProcessingService
     public function detectAndSaveTransfer(Call $call, string $transcript): void
     {
         try {
-            $analysisService = new CallAnalysisService();
-            $transferInfo = $analysisService->detectTransfer($transcript);
+            // El dato fiable es la ejecución real de la herramienta; la IA solo se usa si no viene
+            $transferInfo = $this->transferFromToolCalls($call);
+            if ($transferInfo === null) {
+                $analysisService = new CallAnalysisService();
+                $transferInfo = $analysisService->detectTransfer($transcript);
+            }
 
             if ($transferInfo && isset($transferInfo['is_transferred']) && $transferInfo['is_transferred']) {
                 $call->update([

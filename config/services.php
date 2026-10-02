@@ -57,6 +57,8 @@ return [
             'url' => env('LOCAL_AI_URL', 'https://aiapi.hawkins.es/chat/chat'),
             'api_key' => env('LOCAL_AI_API_KEY', 'OllamaAPI_2024_K8mN9pQ2rS5tU7vW3xY6zA1bC4eF8hJ0lM'),
             'model' => env('LOCAL_AI_MODEL', 'gpt-oss:120b-cloud'),
+            // Modelo local que se usa cuando el principal (cloud) falla o agota su cuota mensual
+            'fallback_model' => env('LOCAL_AI_FALLBACK_MODEL', 'gpt-oss:20b'),
         ],
 
     ];
