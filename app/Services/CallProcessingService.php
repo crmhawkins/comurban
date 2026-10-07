@@ -178,6 +178,7 @@ class CallProcessingService
      */
     protected const AVISOS_POR_GESTION = [
         'garaje' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Solicitud de alquiler de garaje', 'titulo' => 'Solicitud de alquiler de garaje'],
+        'trastero' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Solicitud de trastero', 'titulo' => 'Solicitud de trastero (alquiler o compra)'],
         'incidencia_sin_app' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Incidencia Inquilino', 'titulo' => 'Incidencia de inquilino (no pudo registrarla en Tu Comunidad)'],
         'documentacion' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Solicitud de documentación', 'titulo' => 'Solicitud de documentación o trámite administrativo'],
         'devolucion_llamada' => ['tool' => 'enviar_email_prioritario', 'asunto' => 'Devolución de llamada', 'titulo' => 'Devolución de llamada (la transferencia a la oficina no se completó)'],
